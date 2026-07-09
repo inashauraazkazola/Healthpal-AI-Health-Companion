@@ -15,8 +15,8 @@ HealthPal acts as an AI-powered digital companion that offers personalized welln
 
 ## AMD & Fireworks AI Infrastructure
 HealthPal is powered by the Fireworks AI platform, running optimized inference for high-throughput and low-latency delivery. The AI architecture leverages:
-- **Text Chat**: Meta Llama 3.1 8B Instruct (`accounts/fireworks/models/llama-v3p1-8b-instruct`)
-- **Multimodal Vision**: Meta Llama 3.2 11B Vision Instruct (`accounts/fireworks/models/llama-v3p2-11b-vision-instruct`)
+- **Text Chat**: Qwen 2.5 72B Instruct (`accounts/fireworks/models/qwen2p5-72b-instruct`)
+- **Multimodal Vision**: Qwen 2 VL 7B Instruct (`accounts/fireworks/models/qwen2-vl-7b-instruct`)
 - **Text-to-Speech (TTS)**: F5-TTS (`accounts/fireworks/models/f5-tts`)
 
 This setup is optimized for AMD-based compute infrastructure and developer cloud environments.
@@ -37,7 +37,7 @@ All external AI requests are routed through backend proxy endpoints to keep API 
 *   **Response**:
     ```json
     {
-      "text": "Response from Llama 3.1 8B..."
+      "text": "Response from Qwen 2.5 72B..."
     }
     ```
 
@@ -85,7 +85,7 @@ All external AI requests are routed through backend proxy endpoints to keep API 
 ## Technical Stack
 - **Frontend**: TypeScript, React, Vite
 - **Backend/runtime**: Express / Node.js
-- **AI integration**: Fireworks AI (Llama 3.1 8B, Llama 3.2 11B Vision, F5-TTS)
+- **AI integration**: Fireworks AI (Qwen 2.5 72B, Qwen 2 VL 7B, F5-TTS)
 - **Deployment**: Docker, linux/amd64 containerization
 
 ## Docker Deployment (AMD Optimized)
