@@ -12,11 +12,21 @@ const cleanMessageText = (rawText: string): string => {
     if (!rawText) return "";
     let clean = rawText;
 
-    // Hapus tag <think>...</think> jika ada
+    // 1. Hapus tag <think>...</think> jika ada
     clean = clean.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
     clean = clean.replace(/<think>[\s\S]*/gi, '').trim();
 
-    // Hapus "Thinking Process:" jika berada di awal/dekat awal, atau potong jika di akhir
+    // 2. Jika teks mengandung "Final Polish" atau "Final Polish:" (proses berpikir bertahap),
+    //    ambil hanya teks setelah "Final Polish"
+    const finalPolishRegex = /Final\s+Polish\s*:?\s*/i;
+    if (finalPolishRegex.test(clean)) {
+        const parts = clean.split(finalPolishRegex);
+        if (parts.length > 1) {
+            clean = parts[parts.length - 1].trim();
+        }
+    }
+
+    // 3. Hapus "Thinking Process:" jika berada di awal/dekat awal, atau potong jika di akhir
     if (clean.includes("Thinking Process:")) {
         const idx = clean.indexOf("Thinking Process:");
         if (idx < 150) {
@@ -24,7 +34,7 @@ const cleanMessageText = (rawText: string): string => {
             if (content.includes("\n\n")) {
                 const subParts = content.split("\n\n");
                 const firstPart = subParts[0].trim();
-                const looksLikeReasoning = firstPart.startsWith("-") || firstPart.startsWith("*") || /^\d+\./.test(firstPart) || firstPart.toLowerCase().includes("should") || firstPart.toLowerCase().includes("will suggest") || firstPart.toLowerCase().includes("user");
+                const looksLikeReasoning = firstPart.startsWith("-") || firstPart.startsWith("*") || /^\d+\./.test(firstPart) || firstPart.toLowerCase().includes("should") || firstPart.toLowerCase().includes("will suggest") || firstPart.toLowerCase().includes("user") || firstPart.toLowerCase().includes("constraints");
                 if (looksLikeReasoning) {
                     content = subParts.slice(1).join("\n\n").trim();
                 } else {
@@ -37,7 +47,28 @@ const cleanMessageText = (rawText: string): string => {
         }
     }
 
-    // Hapus "* *" jika berada di awal/dekat awal, atau potong jika di akhir
+    // 4. Jika teks mengandung "Analyze the Request:" di awal (proses berpikir bertahap yang bocor)
+    if (clean.includes("Analyze the Request:")) {
+        const idx = clean.indexOf("Analyze the Request:");
+        if (idx < 150) {
+            let content = clean.substring(idx + "Analyze the Request:".length).trim();
+            if (content.includes("\n\n")) {
+                const subParts = content.split("\n\n");
+                const filteredParts = subParts.filter(p => {
+                    const t = p.trim().toLowerCase();
+                    return !(t.startsWith('-') || t.startsWith('*') || /^\d+\./.test(t) || t.includes("determine the output") || t.includes("draft the content") || t.includes("check constraints") || t.includes("refine the output") || t.includes("final polish"));
+                });
+                if (filteredParts.length > 0) {
+                    content = filteredParts.join("\n\n").trim();
+                }
+            }
+            clean = content;
+        } else {
+            clean = clean.split("Analyze the Request:")[0].trim();
+        }
+    }
+
+    // 5. Hapus "* *" jika berada di awal/dekat awal, atau potong jika di akhir
     if (clean.includes("* *")) {
         const parts = clean.split("* *");
         if (parts.length >= 3) {
@@ -52,7 +83,7 @@ const cleanMessageText = (rawText: string): string => {
         }
     }
 
-    // Bersihkan sisa spasi atau karakter bintang menggantung di paling bawah
+    // 6. Bersihkan sisa spasi atau karakter bintang menggantung di paling bawah
     clean = clean.trim().replace(/[\s\*]+$/, '');
 
     // 4. Pastikan struktur wajib: Disclaimer Medis di paling atas
