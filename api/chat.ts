@@ -19,35 +19,88 @@ const DISCLAIMER = '> This AI analysis is informative and does not replace profe
 
 /**
  * Extract ONLY the clean user-facing response from Qwen3 output.
- * 
- * Logic requested:
- *   1. Search for the first occurrence of "##" in the text.
- *   2. If found, slice the text from "##" to the end (discarding everything before it).
- *   3. Prepend the mandatory medical disclaimer at the very top.
- *   4. If "##" is not found, fallback to cleaning known reasoning headers and prepend the disclaimer.
+ * Uses a double-pass slicing algorithm to find where the actual greeting/answer
+ * starts (e.g. "Welcome to HealthPal", "Hello", "Hi", or "##") and prepends the disclaimer.
  */
 function extractCleanResponse(text: string): string {
   // Step 0: Remove <think>...</think> blocks
   let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
 
-  // Step 1: Find first occurrence of "##" (allowing spaces/newlines around it)
-  const headingPattern = /^##/m;
-  const match = cleaned.match(headingPattern);
-  
-  if (match && match.index !== undefined) {
-    // Keep everything starting from the first "##"
-    cleaned = cleaned.substring(match.index);
-  } else {
-    // Fallback: If no "##" heading is found, clean up any leaked headers/lists manually
-    cleaned = cleaned
-      .replace(/^(Thinking Process|Analyze the Request|Formulate the Response|Greeting Content|Greeting\/Content|Disclaimer|Drafting content|Drafting|Draft the Content)[:\s].*$/gim, '')
-      .replace(/^[-*]\s*(Analyze the Request|Formulate the Response|Review against|Greeting|Drafting|Draft|Disclaimer|Act as|Give general|ALWAYS include|Focus on|DO NOT|If Hands|Language:).*/gim, '')
-      .replace(/^(English only\?|Concise\?|Safe\/evidence|Data\/metrics|No internal|N\/A|Yes[.,]|No[.,]).*/gim, '')
-      .replace(/^(User manages|Recent conversation|Persona|Rules)[:\s].*$/gim, '')
-      .replace(/^(Acknowledge|Be warm|Use Markdown|Keep it|Wait,).*/gim, '');
+  // Step 1: Look for response block section markers
+  const sectionMarkers = [
+    /Draft the Content:/i,
+    /Drafting content:/i,
+    /Drafting:/i,
+    /Greeting\/Wellness insight:/i,
+    /Greeting\/Content:/i,
+    /Greeting:/i,
+    /Content:/i
+  ];
+
+  let bestMarkerIdx = -1;
+  let matchedMarkerLength = 0;
+
+  for (const marker of sectionMarkers) {
+    const matches = [...cleaned.matchAll(new RegExp(marker, 'gi'))];
+    if (matches.length > 0) {
+      const lastMatch = matches[matches.length - 1];
+      if (lastMatch.index !== undefined && lastMatch.index > bestMarkerIdx) {
+        bestMarkerIdx = lastMatch.index;
+        matchedMarkerLength = lastMatch[0].length;
+      }
+    }
   }
 
-  // Remove any duplicate or existing disclaimers in the main body to avoid double disclaimers
+  let sliceText = cleaned;
+  if (bestMarkerIdx !== -1) {
+    sliceText = cleaned.substring(bestMarkerIdx + matchedMarkerLength);
+  }
+
+  // Step 2: In the slice text, find the first occurrence of the greeting keywords or heading
+  const greetingPatterns = [
+    /##/i,
+    /welcome to healthpal/i,
+    /hello/i,
+    /hi[!\s,]/i,
+    /hey[!\s,]/i
+  ];
+
+  let bestGreetingIdx = -1;
+  for (const pattern of greetingPatterns) {
+    const match = sliceText.match(pattern);
+    if (match && match.index !== undefined) {
+      if (bestGreetingIdx === -1 || match.index < bestGreetingIdx) {
+        bestGreetingIdx = match.index;
+      }
+    }
+  }
+
+  if (bestGreetingIdx !== -1) {
+    cleaned = sliceText.substring(bestGreetingIdx);
+  } else {
+    // Fallback: If no section markers or greetings found in the slice, search the whole text from the end
+    const fallbackPatterns = [
+      /welcome to healthpal/i,
+      /hello[!\s,]/i,
+      /hi[!\s,]/i,
+      /##/
+    ];
+    let lastGreetingIdx = -1;
+    for (const pattern of fallbackPatterns) {
+      const matches = [...cleaned.matchAll(new RegExp(pattern, 'gi'))];
+      if (matches.length > 0) {
+        const lastMatch = matches[matches.length - 1];
+        if (lastMatch.index !== undefined && lastMatch.index > lastGreetingIdx) {
+          lastGreetingIdx = lastMatch.index;
+        }
+      }
+    }
+    if (lastGreetingIdx !== -1) {
+      cleaned = cleaned.substring(lastGreetingIdx);
+    }
+  }
+
+  // Remove any duplicate or existing disclaimers in the main body
   cleaned = cleaned.replace(/^>\s*This AI analysis is informative[^\n]*\n*/gm, '').trim();
   cleaned = cleaned.replace(/^This AI analysis is informative[^\n]*\n*/gm, '').trim();
 
