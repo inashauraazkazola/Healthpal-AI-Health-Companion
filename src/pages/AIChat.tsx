@@ -10,8 +10,14 @@ import { VoiceInputButton, speakText } from '../components/VoiceTools';
 function formatMessageToHtml(text: string): string {
   if (!text) return '';
   
+  let cleanText = text;
+  if (cleanText.includes("* *Wait")) {
+    cleanText = cleanText.split("* *Wait")[0];
+  }
+  cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
+
   // Escape HTML tags to prevent XSS
-  let html = text
+  let html = cleanText
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
