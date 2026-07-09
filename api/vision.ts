@@ -20,48 +20,48 @@ const DISCLAIMER = '> This AI analysis is informative and does not replace profe
 
 /**
  * Extract ONLY the clean user-facing response from Qwen3 output.
- * Since Qwen3 often leaks its reasoning/drafting steps alongside the disclaimer,
- * we locate the last occurrence of the disclaimer and grab only the clean content after it.
+ * 
+ * Logic requested:
+ *   1. Search for the first occurrence of "##" in the text.
+ *   2. If found, slice the text from "##" to the end (discarding everything before it).
+ *   3. Prepend the mandatory medical disclaimer at the very top.
+ *   4. If "##" is not found, fallback to cleaning known reasoning headers and prepend the disclaimer.
  */
 function extractCleanResponse(text: string): string {
-  // Step 1: Remove Qwen thinking tags
+  // Step 0: Remove <think>...</think> blocks
   let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
 
-  const disclaimerPhrase = "This AI analysis is informative and does not replace professional medical consultation";
+  // Step 1: Find first occurrence of "##" (allowing spaces/newlines around it)
+  const headingPattern = /^##/m;
+  const match = cleaned.match(headingPattern);
   
-  // Find the last index of the disclaimer phrase (case-insensitive)
-  const lowerText = cleaned.toLowerCase();
-  const lastIdx = lowerText.lastIndexOf(disclaimerPhrase.toLowerCase());
-
-  if (lastIdx !== -1) {
-    // Find where the disclaimer line starts (go back to the start of the line or include > if present)
-    let startIdx = lastIdx;
-    while (startIdx > 0 && cleaned[startIdx - 1] !== '\n') {
-      startIdx--;
-    }
-    // Slice from the start of that disclaimer line to the end
-    cleaned = cleaned.substring(startIdx);
+  if (match && match.index !== undefined) {
+    // Keep everything starting from the first "##"
+    cleaned = cleaned.substring(match.index);
+  } else {
+    // Fallback: If no "##" heading is found, clean up any leaked headers/lists manually
+    cleaned = cleaned
+      .replace(/^(Thinking Process|Analyze the Request|Formulate the Response|Greeting Content|Greeting\/Content|Disclaimer|Drafting content|Drafting|Draft the Content)[:\s].*$/gim, '')
+      .replace(/^[-*]\s*(Analyze the Request|Formulate the Response|Review against|Greeting|Drafting|Draft|Disclaimer|Act as|Give general|ALWAYS include|Focus on|DO NOT|If Hands|Language:).*/gim, '')
+      .replace(/^(English only\?|Concise\?|Safe\/evidence|Data\/metrics|No internal|N\/A|Yes[.,]|No[.,]).*/gim, '')
+      .replace(/^(User manages|Recent conversation|Persona|Rules)[:\s].*$/gim, '')
+      .replace(/^(Acknowledge|Be warm|Use Markdown|Keep it|Wait,).*/gim, '');
   }
 
-  // Remove the disclaimer itself from this clean content slice so we can format it consistently
-  const disclaimerRegex = /^(?:>\s*)?This AI analysis is informative and does not replace professional medical consultation\.?\s*(?:Please consult a licensed medical professional\.?)?/mi;
-  cleaned = cleaned.replace(disclaimerRegex, '').trim();
+  // Remove any duplicate or existing disclaimers in the main body to avoid double disclaimers
+  cleaned = cleaned.replace(/^>\s*This AI analysis is informative[^\n]*\n*/gm, '').trim();
+  cleaned = cleaned.replace(/^This AI analysis is informative[^\n]*\n*/gm, '').trim();
 
-  // Clean up headers that might follow the disclaimer
-  cleaned = cleaned
-    .replace(/^(Greeting\/Wellness insight|Greeting\/Content|Greeting|Wellness insight|Drafting|Draft the Content|Content)[:\s]*/i, '')
-    .trim();
-
-  // Remove trailing junk
+  // Clean trailing review check blocks or code fence leftovers
   cleaned = cleaned
     .replace(/\n*\s*Review against constraints:[\s\S]*/i, '')
-    .replace(/\*\*+$/, '') // remove trailing markdown asterisks
+    .replace(/\*\*+$/, '')
     .trim();
 
-  // Prepend the standard blockquote disclaimer
+  // Prepend the mandatory Medical Disclaimer
   cleaned = DISCLAIMER + '\n\n' + cleaned;
 
-  // Collapse multiple blank lines
+  // Final cleanup of blank lines
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
 
   return cleaned;
