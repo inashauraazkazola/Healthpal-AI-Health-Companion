@@ -20,6 +20,19 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend, Brush, LineChart, Line 
 } from 'recharts';
 
+// ── Helper: potong teks batin AI bocor ────────────────────────────────────────
+function cutLeakedReasoning(text: string): string {
+  if (typeof text !== 'string' || !text) return text;
+  let cleaned = text;
+  if (cleaned.includes('* *')) cleaned = cleaned.split('* *')[0];
+  const trash = ['Wait, check constraints', '* Okay', '* Output', '* Note:', '*Note:'];
+  for (const t of trash) {
+    const i = cleaned.indexOf(t);
+    if (i !== -1) cleaned = cleaned.substring(0, i);
+  }
+  return cleaned.trim().replace(/[\s\*]+$/, '');
+}
+
 export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) => {
   const { user, logout, updateUser } = useAuth();
 
@@ -597,10 +610,11 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
         Provide 1-2 sentences of brief advice in English. Include the medical disclaimer at the end: "${AI_DISCLAIMER}"
       `;
 
-      const text = await proxyChat(prompt);
+      let text = await proxyChat(prompt);
+      text = cutLeakedReasoning(text);
       if (text) {
         setHealthData(prev => ({ ...prev, aiInsights: text }));
-        speakText(text);
+        speakText(text.replace(/[\*#_>]/g, '').trim());
       }
     } catch (e) {
       console.error(e);
@@ -628,10 +642,11 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
         Must include this medical disclaimer at the very end: "${AI_DISCLAIMER}"
       `;
 
-      const text = await proxyChat(prompt);
+      let text = await proxyChat(prompt);
+      text = cutLeakedReasoning(text);
       const feedback = text || "Sorry, I cannot process feedback at this time.";
       setSymptomAiFeedback(feedback);
-      speakText(feedback);
+      speakText(feedback.replace(/[\*#_>]/g, '').trim());
       
       // Update health data with the history
       setHealthData(prev => ({
@@ -670,13 +685,14 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
         Include a brief medical disclaimer.
       `;
 
-      const text = await proxyChat(prompt);
+      let text = await proxyChat(prompt);
+      text = cutLeakedReasoning(text);
       const feedback = text || "Feedback not available.";
       setMeals(prev => ({
         ...prev,
         [mealType]: { ...prev[mealType], feedback, isAnalyzing: false }
       }));
-      if (text) speakText(text);
+      if (text) speakText(text.replace(/[\*#_>]/g, '').trim());
     } catch (e) {
       console.error(e);
       setMeals(prev => ({
@@ -703,13 +719,14 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
         Include the required medical disclaimer: "${AI_DISCLAIMER}"
       `;
 
-      const text = await proxyChat(prompt);
+      let text = await proxyChat(prompt);
+      text = cutLeakedReasoning(text);
       if (text) {
         setHealthData(prev => ({
           ...prev,
           medications: prev.medications?.map(m => m.id === medId ? { ...m, analysis: text || "Analysis not available." } : m) || []
         }));
-        speakText(text);
+        speakText(text.replace(/[\*#_>]/g, '').trim());
       }
     } catch (e) {
       console.error(e);
@@ -736,7 +753,8 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
         Include the required medical disclaimer: "${AI_DISCLAIMER}"
       `;
 
-      const text = await proxyChat(prompt);
+      let text = await proxyChat(prompt);
+      text = cutLeakedReasoning(text);
       if (text) {
         setHealthData(prev => {
           const logs = [...(prev.hydrationLogs || [])];
@@ -745,7 +763,7 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
           else logs.push({ date: today, amount: waterCount, analysis: text || "" });
           return { ...prev, hydrationLogs: logs };
         });
-        speakText(text);
+        speakText(text.replace(/[\*#_>]/g, '').trim());
       }
     } catch (e) {
       console.error(e);

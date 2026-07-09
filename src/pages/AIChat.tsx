@@ -7,14 +7,26 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { VoiceInputButton, speakText } from '../components/VoiceTools';
 
+function cutLeakedReasoning(text: string): string {
+  if (typeof text !== 'string' || !text) return text;
+  let cleaned = text;
+  // Potong SEMUA teks mulai dari "* *" (pola universal teks batin AI)
+  if (cleaned.includes('* *')) {
+    cleaned = cleaned.split('* *')[0];
+  }
+  // Keyword cadangan
+  const trashMarkers = ['Wait, check constraints', '* Okay', '* Output', '* Note:', '*Note:'];
+  for (const marker of trashMarkers) {
+    const idx = cleaned.indexOf(marker);
+    if (idx !== -1) cleaned = cleaned.substring(0, idx);
+  }
+  return cleaned.trim().replace(/[\s\*]+$/, '');
+}
+
 function formatMessageToHtml(text: string): string {
   if (!text) return '';
   
-  let cleanText = text;
-  if (cleanText.includes("* *Wait")) {
-    cleanText = cleanText.split("* *Wait")[0];
-  }
-  cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
+  let cleanText = cutLeakedReasoning(text);
 
   // Escape HTML tags to prevent XSS
   let html = cleanText
@@ -99,12 +111,19 @@ export const AIChat = ({ onBack }: { onBack: () => void }) => {
         '/no_think',
       ].filter(Boolean).join('\n');
 
-      const text = await proxyChat(prompt);
+      let text = await proxyChat(prompt);
+      // ── LAPIS KEDUA: Potong kebocoran teks batin sebelum masuk ke state ──
+      if (typeof text === 'string' && text.includes('* *')) {
+        text = text.split('* *')[0];
+      }
+      text = text.trim().replace(/[\s\*]+$/, '');
       setMessages(prev => [...prev, { role: 'ai', content: text }]);
       
       // Auto speak based on voiceEnabled, handsFree or length
+      // Bersihkan teks untuk TTS agar tidak mengucapkan simbol bintang
+      const cleanTextForSpeech = text.replace(/[\*#_>]/g, '').trim();
       if (user.settings.voiceEnabled || handsFree || (text.length < 300 && !handsFree)) {
-        speakText(text, lang, setIsSpeaking);
+        speakText(cleanTextForSpeech, lang, setIsSpeaking);
       }
     } catch (error) {
       console.error("AI Error:", error);

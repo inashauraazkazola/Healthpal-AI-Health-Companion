@@ -14,21 +14,24 @@ export const AI_DISCLAIMER =
 // Strips leaked internal reasoning from the model (e.g. "* *Wait...").
 // ─────────────────────────────────────────────────────────────────────────────
 function cleanAiResponse(text: string): string {
-  if (!text) return text;
+  if (typeof text !== 'string' || !text) return text;
 
   let cleaned = text;
 
-  // Cut everything from known leaked internal reasoning markers
+  // ── STRATEGI 1: Potong di "* *" (pola UNIVERSAL teks batin AI) ──────────
+  // Setiap kali AI bocor dengan tanda "* *Apa saja" → potong semuanya.
+  if (cleaned.includes('* *')) {
+    cleaned = cleaned.split('* *')[0];
+  }
+
+  // ── STRATEGI 2: Keyword spesifik sebagai cadangan ───────────────────────
   const trashMarkers = [
-    "* *Wait",
-    "* *Okay",
-    "* *Ok",
-    "* Okay",
-    "* Output",
+    'Wait, check constraints',
+    '* Okay',
+    '* Output',
+    '* Note:',
+    '*Note:',
     "##` headers",
-    "*Note:",
-    "* Note:",
-    "Wait, check constraints",
   ];
   for (const marker of trashMarkers) {
     const idx = cleaned.indexOf(marker);
@@ -37,7 +40,7 @@ function cleanAiResponse(text: string): string {
     }
   }
 
-  // Trim trailing whitespace and stray asterisks/symbols
+  // ── STRATEGI 3: Bersihkan ekor bintang/spasi menggantung ─────────────────
   cleaned = cleaned.trim().replace(/[\s\*]+$/, '');
 
   return cleaned;
