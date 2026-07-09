@@ -24,10 +24,15 @@ import {
 function cutLeakedReasoning(text: string): string {
   if (typeof text !== 'string' || !text) return text;
   let cleaned = text;
-  // Potong SEMUA teks mulai dari "* *" / "**" / "Wait, check constraints" menggunakan regex
-  const regexCut = /\*\s*\*|\*\*|Wait,\s*check\s*constraints|check\s*constraints/i;
-  if (regexCut.test(cleaned)) {
-    cleaned = cleaned.split(regexCut)[0];
+  // Potong HANYA di "* *" (bintang-spasi-bintang) — ini marker kebocoran teks batin AI
+  // JANGAN potong di "**" karena itu markdown bold yang valid (mis. **heart failure**)
+  if (cleaned.includes('* *')) {
+    cleaned = cleaned.split('* *')[0];
+  }
+  // Potong juga jika ada marker 'Wait, check constraints' atau 'check constraints'
+  const constraintIdx = cleaned.search(/Wait,?\s*check\s*constraints|check\s*constraints/i);
+  if (constraintIdx !== -1) {
+    cleaned = cleaned.substring(0, constraintIdx);
   }
   // Keyword cadangan
   const trash = ['* Okay', '* Output', '* Note:', '*Note:'];
@@ -73,12 +78,7 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
     if (rawText === 'Selamat datang! Tekan salah satu menu pelacak untuk memulai hari Anda.') {
       rawText = "Welcome! Press any tracker menu to start your day.";
     }
-    let cleanText: string = rawText || '';
-    if (cleanText.includes("* *")) {
-      cleanText = cleanText.split("* *")[0];
-    }
-    cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
-    return cleanText;
+    return cutLeakedReasoning(rawText || '');
   }, [healthData.aiInsights]);
 
   const [symptomSeverity, setSymptomSeverity] = useState(1);

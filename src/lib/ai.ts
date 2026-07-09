@@ -18,13 +18,19 @@ function cleanAiResponse(text: string): string {
 
   let cleaned = text;
 
-  // ── STRATEGI 1: Potong di "* *" / "**" / "Wait, check constraints" menggunakan regex ──
-  const regexCut = /\*\s*\*|\*\*|Wait,\s*check\s*constraints|check\s*constraints/i;
-  if (regexCut.test(cleaned)) {
-    cleaned = cleaned.split(regexCut)[0];
+  // ── Potong di "* *" (bintang-spasi-bintang) — ini satu-satunya marker kebocoran AI yang valid ──
+  // JANGAN potong di "**" karena itu markdown bold yang sah (mis. **heart failure**)
+  if (cleaned.includes('* *')) {
+    cleaned = cleaned.split('* *')[0];
   }
 
-  // ── STRATEGI 2: Keyword spesifik sebagai cadangan ───────────────────────
+  // ── Potong jika ada 'Wait, check constraints' atau 'check constraints' ──
+  const constraintIdx = cleaned.search(/Wait,?\s*check\s*constraints|check\s*constraints/i);
+  if (constraintIdx !== -1) {
+    cleaned = cleaned.substring(0, constraintIdx);
+  }
+
+  // ── Keyword cadangan ───────────────────────────────────────────────────────
   const trashMarkers = [
     '* Okay',
     '* Output',
@@ -39,7 +45,7 @@ function cleanAiResponse(text: string): string {
     }
   }
 
-  // ── STRATEGI 3: Bersihkan ekor bintang/spasi menggantung ─────────────────
+  // ── Bersihkan ekor bintang/spasi menggantung ──────────────────────────────
   cleaned = cleaned.trim().replace(/[\s\*]+$/, '');
 
   return cleaned;

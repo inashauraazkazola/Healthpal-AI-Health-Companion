@@ -36,10 +36,15 @@ export const speakText = (text: string, language: string = 'en-US', onStateChang
   window.speechSynthesis.cancel();
   
   let cleaned = text;
-  // Potong SEMUA teks mulai dari "* *" / "**" / "Wait, check constraints" menggunakan regex
-  const regexCut = /\*\s*\*|\*\*|Wait,\s*check\s*constraints|check\s*constraints/i;
-  if (regexCut.test(cleaned)) {
-    cleaned = cleaned.split(regexCut)[0];
+  // Potong HANYA di "* *" (bintang-spasi-bintang) — marker kebocoran AI
+  // JANGAN potong di "**" karena itu markdown bold valid
+  if (cleaned.includes('* *')) {
+    cleaned = cleaned.split('* *')[0];
+  }
+  // Potong juga jika ada 'Wait, check constraints'
+  const constraintIdx = cleaned.search(/Wait,?\s*check\s*constraints|check\s*constraints/i);
+  if (constraintIdx !== -1) {
+    cleaned = cleaned.substring(0, constraintIdx);
   }
   // Keyword cadangan
   const trash = ['* Okay', '* Output', '* Note:', '*Note:'];
