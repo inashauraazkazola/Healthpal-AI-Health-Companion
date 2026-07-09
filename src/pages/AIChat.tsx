@@ -48,23 +48,12 @@ export const AIChat = ({ onBack }: { onBack: () => void }) => {
 
     try {
       const history = messages.slice(-5).map(m => `${m.role === 'user' ? 'User' : 'PalBuddy'}: ${m.content}`).join('\n');
-      const appLang = 'English';
-      const prompt = `
-        User Profile: Managing diseases: ${user.selectedDiseases.join(', ')}.
-        Language: ${appLang}.
-        Conversation History:
-        ${history}
-
-        User message: "${userMsg}"
-        
-        Guidelines:
-        1. Act as PalBuddy, a supportive and friendly health assistant.
-        2. Give general medical information based on medical knowledge.
-        3. ALWAYS include the disclaimer at the start: "${AI_DISCLAIMER}"
-        4. Focus on personalization for their conditions.
-        5. DO NOT provide a final medical diagnosis.
-        6. If Hands-Free mode is active, provide a more concise response that is easy to listen to.
-      `;
+      const prompt = [
+        `The user manages: ${user.selectedDiseases.join(', ')}.`,
+        handsFree ? 'Hands-free mode is on — keep it short and easy to listen to.' : '',
+        history ? `Recent conversation:\n${history}` : '',
+        `User says: "${userMsg}"`,
+      ].filter(Boolean).join('\n');
 
       const text = await proxyChat(prompt);
       setMessages(prev => [...prev, { role: 'ai', content: text }]);

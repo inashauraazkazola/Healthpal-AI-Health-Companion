@@ -1,24 +1,87 @@
 const FIREWORKS_URL = 'https://api.fireworks.ai/inference/v1/chat/completions';
 const CHAT_MODEL = 'accounts/fireworks/models/qwen3p7-plus';
 
-const SYSTEM_INSTRUCTION = `You are the core AI backend engine for "HealthPal", an innovative healthcare and wellness platform running on AMD compute infrastructure powered by Meta Llama 3 AI.
+const SYSTEM_INSTRUCTION = `You are PalBuddy, a warm and friendly health assistant for the "HealthPal" wellness platform.
 
-STRICT LANGUAGE RULE (CRITICAL):
-- You must respond EXCLUSIVELY in English.
-- Even if the user inputs text, queries, or daily health logs in Indonesian (Bahasa Indonesia) or any other language, you must automatically translate the context internally and provide your final output 100% in English.
-- Any output containing non-English words will violate the AMD Hackathon evaluation rules and cause a system failure. Stay strictly in English.
-
-Operational Rules:
-1. EFFICIENCY: Optimize response generation to maintain a processing time well under the 30-second threshold.
-2. MEDICAL SAFETY: Provide safe, evidence-based wellness insights, educational summaries, and supportive logs. Never prescribe specific medications or provide binding clinical diagnoses.
-
-Adaptive Output Formatting Rules:
-- IF the request implies data handling, user metrics, daily logs, sentiment tracking, or multiple-choice questions: Output purely in raw, valid, minified JSON format. Do not wrap the JSON in markdown code blocks. Ensure keys are in English, clear, and properly typed.
-- IF the request implies educational content, medical summarisation, instructions, or articles: Output in highly readable, professional Markdown using clean headers (##, ###) and bold text for key terms.
-- Never mix conversational filler prose outside of the requested JSON or Markdown structures.`;
+Rules:
+- Always respond in English only, regardless of the user's language.
+- Start every response with this disclaimer on its own line:
+  > This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.
+- Be concise (under 30-second read time).
+- Provide safe, evidence-based wellness insights. Never prescribe medications or diagnose.
+- For data/metrics/logs requests: respond with raw minified JSON (no markdown code fences).
+- For educational/medical/greeting content: respond in clean Markdown with ## headers and **bold** key terms.
+- Never output internal reasoning, thinking steps, scratchpads, or analysis notes.`;
 
 /**
- * Text-only chat via qwen3p7-plus.
+ * Strip any leaked thinking/reasoning blocks from AI output.
+ * Handles <think> tags, markdown-bold headers, hash headers,
+ * and multi-line reasoning blocks that Qwen3 sometimes emits.
+ */
+function stripThinking(text: string): string {
+  // 1. Remove <think>...</think> blocks (Qwen3 thinking tags)
+  let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+
+  // 2. List of keywords that indicate leaked internal reasoning
+  const leakKeywords = [
+    'Thinking Process',
+    'Analyze the Request',
+    'Drafting',
+    'Internal Note',
+    'Scratchpad',
+    'Chain of Thought',
+    'CoT',
+    'System Rules',
+    'STRICT OUTPUT',
+    'STRICT LANGUAGE',
+    'Operational Rules',
+    'Adaptive Output',
+    'CRITICAL',
+    'EFFICIENCY',
+    'MEDICAL SAFETY',
+    'User Profile:',
+    'Conversation History:',
+    'Wait,',
+  ];
+
+  const escapedKeywords = leakKeywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const kwGroup = escapedKeywords.join('|');
+
+  // 3. Remove bold-markdown headers like **Thinking Process:** ... (up to next bold header or end)
+  cleaned = cleaned.replace(
+    new RegExp(`\\*\\*(?:${kwGroup})\\*\\*[:\\-]?[\\s\\S]*?(?=\n\\*\\*[A-Z]|\n#{1,4}\\s|\n> |$)`, 'gi'),
+    ''
+  );
+
+  // 4. Remove hash-prefixed headers like ### Thinking Process: ... (up to next header or end)
+  cleaned = cleaned.replace(
+    new RegExp(`^#{1,4}\\s*(?:${kwGroup})[:\\-]?.*(?:\n(?!#{1,4}\\s|> |\\*\\*[A-Z]).*)*`, 'gim'),
+    ''
+  );
+
+  // 5. Remove plain-text lines that start with a leak keyword followed by colon
+  cleaned = cleaned.replace(
+    new RegExp(`^(?:${kwGroup})[:\\-].*$`, 'gim'),
+    ''
+  );
+
+  // 6. Remove numbered reasoning steps like "Step 1:", "1." at the start followed by reasoning text
+  cleaned = cleaned.replace(/^Step \d+[:\-].*/gim, '');
+
+  // 7. Remove lines that look like meta-instructions leaked from the prompt
+  cleaned = cleaned.replace(/^[-*]\s*(Act as PalBuddy|Give general medical|ALWAYS include|Focus on personalization|DO NOT provide|If Hands-Free|Language:).*/gim, '');
+
+  // 8. Remove "Guidelines:" section blocks
+  cleaned = cleaned.replace(/^Guidelines:\s*\n(\s*(\d+\.|-|\*)\s.*\n?)*/gim, '');
+
+  // 9. Collapse multiple blank lines into one
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
+
+  return cleaned;
+}
+
+/**
+ * Text-only chat via qwen3p7-plus (thinking disabled).
  * For image analysis, use /api/vision instead.
  */
 export const runChat = async (prompt: string) => {
@@ -48,6 +111,8 @@ export const runChat = async (prompt: string) => {
       messages,
       temperature: 0.6,
       max_tokens: 500,
+      // Disable Qwen3 chain-of-thought thinking mode
+      enable_thinking: false,
     }),
   });
 
@@ -59,13 +124,15 @@ export const runChat = async (prompt: string) => {
     throw new Error(data?.error?.message || 'Fireworks request failed');
   }
 
-  const text = data?.choices?.[0]?.message?.content ?? '';
+  const raw = data?.choices?.[0]?.message?.content ?? '';
 
-  if (!text) {
+  if (!raw) {
     throw new Error('Fireworks returned an empty response.');
   }
 
-  return typeof text === 'string' ? text : JSON.stringify(text);
+  const text = stripThinking(typeof raw === 'string' ? raw : JSON.stringify(raw));
+
+  return text;
 };
 
 export default async function handler(req: any, res: any) {
