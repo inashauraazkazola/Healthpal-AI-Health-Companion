@@ -19,6 +19,9 @@ function formatMessageToHtml(text: string): string {
   // Convert blockquotes (e.g. &gt; This AI analysis...)
   html = html.replace(/^&gt;\s*(.*)$/gm, '<blockquote>$1</blockquote>');
 
+  // Also convert any standalone medical disclaimer lines to blockquotes to ensure green box styling applies
+  html = html.replace(/^(This AI analysis is informative and does not replace professional medical consultation.*)$/gim, '<blockquote>$1</blockquote>');
+
   // Convert bold text **text** to <strong>text</strong>
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 

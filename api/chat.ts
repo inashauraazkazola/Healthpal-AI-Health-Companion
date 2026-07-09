@@ -15,108 +15,37 @@ Rules:
 
 /no_think`;
 
-const DISCLAIMER = '> This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.';
-
 /**
  * Extract ONLY the clean user-facing response from Qwen3 output.
- * Uses a double-pass slicing algorithm to find where the actual greeting/answer
- * starts (e.g. "Welcome to HealthPal", "Hello", "Hi", or "##") and prepends the disclaimer.
+ * Slices from the last occurrence of "##" heading to retrieve only the final content.
  */
 function extractCleanResponse(text: string): string {
   // Step 0: Remove <think>...</think> blocks
   let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
 
-  // Step 1: Look for response block section markers
-  const sectionMarkers = [
-    /Draft the Content:/i,
-    /Drafting content:/i,
-    /Drafting:/i,
-    /Greeting\/Wellness insight:/i,
-    /Greeting\/Content:/i,
-    /Greeting:/i,
-    /Content:/i
-  ];
+  // Step 1: Find the last occurrence of "##" in the text
+  const lastHeadingIndex = cleaned.lastIndexOf("##");
 
-  let bestMarkerIdx = -1;
-  let matchedMarkerLength = 0;
-
-  for (const marker of sectionMarkers) {
-    const matches = [...cleaned.matchAll(new RegExp(marker, 'gi'))];
-    if (matches.length > 0) {
-      const lastMatch = matches[matches.length - 1];
-      if (lastMatch.index !== undefined && lastMatch.index > bestMarkerIdx) {
-        bestMarkerIdx = lastMatch.index;
-        matchedMarkerLength = lastMatch[0].length;
-      }
-    }
-  }
-
-  let sliceText = cleaned;
-  if (bestMarkerIdx !== -1) {
-    sliceText = cleaned.substring(bestMarkerIdx + matchedMarkerLength);
-  }
-
-  // Step 2: In the slice text, find the first occurrence of the greeting keywords or heading
-  const greetingPatterns = [
-    /##/i,
-    /welcome to healthpal/i,
-    /hello/i,
-    /hi[!\s,]/i,
-    /hey[!\s,]/i
-  ];
-
-  let bestGreetingIdx = -1;
-  for (const pattern of greetingPatterns) {
-    const match = sliceText.match(pattern);
-    if (match && match.index !== undefined) {
-      if (bestGreetingIdx === -1 || match.index < bestGreetingIdx) {
-        bestGreetingIdx = match.index;
-      }
-    }
-  }
-
-  if (bestGreetingIdx !== -1) {
-    cleaned = sliceText.substring(bestGreetingIdx);
+  if (lastHeadingIndex !== -1) {
+    // Take only the content from the last "##" to the end
+    const cleanContent = cleaned.substring(lastHeadingIndex);
+    
+    // Prepend the mandatory disclaimer line at the top
+    cleaned = `This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.\n\n${cleanContent}`;
   } else {
-    // Fallback: If no section markers or greetings found in the slice, search the whole text from the end
-    const fallbackPatterns = [
-      /welcome to healthpal/i,
-      /hello[!\s,]/i,
-      /hi[!\s,]/i,
-      /##/
-    ];
-    let lastGreetingIdx = -1;
-    for (const pattern of fallbackPatterns) {
-      const matches = [...cleaned.matchAll(new RegExp(pattern, 'gi'))];
-      if (matches.length > 0) {
-        const lastMatch = matches[matches.length - 1];
-        if (lastMatch.index !== undefined && lastMatch.index > lastGreetingIdx) {
-          lastGreetingIdx = lastMatch.index;
-        }
-      }
-    }
-    if (lastGreetingIdx !== -1) {
-      cleaned = cleaned.substring(lastGreetingIdx);
-    }
+    // Fallback: If no "##" is found, ensure there's exactly one disclaimer at the top
+    cleaned = cleaned.replace(/^>\s*This AI analysis is informative[^\n]*\n*/gm, '').trim();
+    cleaned = cleaned.replace(/^This AI analysis is informative[^\n]*\n*/gm, '').trim();
+    cleaned = `This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.\n\n${cleaned}`;
   }
 
-  // Remove any duplicate or existing disclaimers in the main body
-  cleaned = cleaned.replace(/^>\s*This AI analysis is informative[^\n]*\n*/gm, '').trim();
-  cleaned = cleaned.replace(/^This AI analysis is informative[^\n]*\n*/gm, '').trim();
-
-  // Clean trailing review check blocks, trailing standalone numbers (like "4."), and leftover asterisks
+  // Step 2: Clean trailing review check blocks or code fence leftovers
   cleaned = cleaned
     .replace(/\n*\s*Review against constraints:[\s\S]*/i, '')
     .replace(/\*\*+$/, '')
     .replace(/\n+\s*\d+\.?\s*$/, '') // remove trailing standalone numbers like "4."
     .replace(/\n+\s*[-*+]\s*$/, '')   // remove trailing bullet symbols
     .trim();
-
-  // Prepend the mandatory Medical Disclaimer
-  cleaned = DISCLAIMER + '\n\n' + cleaned;
-
-  // Final cleanup of blank lines
-  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
 
   return cleaned;
 }
