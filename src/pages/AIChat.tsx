@@ -3,10 +3,41 @@ import { useAuth } from '../hooks/usePersistence';
 import { proxyChat, AI_DISCLAIMER } from '../lib/ai';
 import { PalBuddy } from '../components/PalBuddy';
 import { Send, ArrowLeft, Bot, User, ShieldAlert, Volume2, Mic, MicOff } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { VoiceInputButton, speakText } from '../components/VoiceTools';
+
+function formatMessageToHtml(text: string): string {
+  if (!text) return '';
+  
+  // Escape HTML tags to prevent XSS
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Convert blockquotes (e.g. &gt; This AI analysis...)
+  html = html.replace(/^&gt;\s*(.*)$/gm, '<blockquote>$1</blockquote>');
+
+  // Convert bold text **text** to <strong>text</strong>
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+  // Convert headings (e.g. ## heading)
+  html = html.replace(/^##\s*(.*)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^###\s*(.*)$/gm, '<h3>$1</h3>');
+
+  // Process paragraphs
+  const blocks = html.split(/\n\n+/);
+  const processedBlocks = blocks.map(block => {
+    const trimmed = block.trim();
+    if (trimmed.startsWith('<blockquote>') || trimmed.startsWith('<h2>') || trimmed.startsWith('<h3>')) {
+      return trimmed;
+    }
+    return `<p>${trimmed.replace(/\n/g, '<br/>')}</p>`;
+  });
+
+  return processedBlocks.join('');
+}
 
 export const AIChat = ({ onBack }: { onBack: () => void }) => {
   const { user } = useAuth();
@@ -155,11 +186,10 @@ export const AIChat = ({ onBack }: { onBack: () => void }) => {
                     <ShieldAlert className="w-3 h-3" /> Medical Alert
                   </div>
                 )}
-                <div className="prose prose-sm dark:prose-invert prose-emerald max-w-none">
-                  <ReactMarkdown>
-                    {msg.content}
-                  </ReactMarkdown>
-                </div>
+                <div 
+                  className="chat-content text-sm leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: formatMessageToHtml(msg.content) }}
+                />
               </div>
             </motion.div>
           ))}

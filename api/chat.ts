@@ -104,10 +104,12 @@ function extractCleanResponse(text: string): string {
   cleaned = cleaned.replace(/^>\s*This AI analysis is informative[^\n]*\n*/gm, '').trim();
   cleaned = cleaned.replace(/^This AI analysis is informative[^\n]*\n*/gm, '').trim();
 
-  // Clean trailing review check blocks or code fence leftovers
+  // Clean trailing review check blocks, trailing standalone numbers (like "4."), and leftover asterisks
   cleaned = cleaned
     .replace(/\n*\s*Review against constraints:[\s\S]*/i, '')
     .replace(/\*\*+$/, '')
+    .replace(/\n+\s*\d+\.?\s*$/, '') // remove trailing standalone numbers like "4."
+    .replace(/\n+\s*[-*+]\s*$/, '')   // remove trailing bullet symbols
     .trim();
 
   // Prepend the mandatory Medical Disclaimer
