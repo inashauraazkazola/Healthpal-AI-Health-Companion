@@ -12,17 +12,47 @@ const cleanMessageText = (rawText: string): string => {
     if (!rawText) return "";
     let clean = rawText;
 
-    // 1. Potong paksa jika mendeteksi teks "Thinking Process:" di awal atau di tengah
+    // Hapus tag <think>...</think> jika ada
+    clean = clean.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    clean = clean.replace(/<think>[\s\S]*/gi, '').trim();
+
+    // Hapus "Thinking Process:" jika berada di awal/dekat awal, atau potong jika di akhir
     if (clean.includes("Thinking Process:")) {
-        clean = clean.split("Thinking Process:")[0];
+        const idx = clean.indexOf("Thinking Process:");
+        if (idx < 150) {
+            let content = clean.substring(idx + "Thinking Process:".length).trim();
+            if (content.includes("\n\n")) {
+                const subParts = content.split("\n\n");
+                const firstPart = subParts[0].trim();
+                const looksLikeReasoning = firstPart.startsWith("-") || firstPart.startsWith("*") || /^\d+\./.test(firstPart) || firstPart.toLowerCase().includes("should") || firstPart.toLowerCase().includes("will suggest") || firstPart.toLowerCase().includes("user");
+                if (looksLikeReasoning) {
+                    content = subParts.slice(1).join("\n\n").trim();
+                } else {
+                    content = subParts.slice(1).join("\n\n").trim();
+                }
+            }
+            clean = content;
+        } else {
+            clean = clean.split("Thinking Process:")[0].trim();
+        }
     }
 
-    // 2. Potong paksa jika mendeteksi tanda asteris kembar (* *Wait, * *Okay) di bagian ekor
+    // Hapus "* *" jika berada di awal/dekat awal, atau potong jika di akhir
     if (clean.includes("* *")) {
-        clean = clean.split("* *")[0];
+        const parts = clean.split("* *");
+        if (parts.length >= 3) {
+            clean = parts[parts.length - 1].trim();
+        } else {
+            const idx = clean.indexOf("* *");
+            if (idx < 150) {
+                clean = parts[1] ? parts[1].trim() : clean;
+            } else {
+                clean = parts[0].trim();
+            }
+        }
     }
 
-    // 3. Bersihkan sisa spasi atau karakter bintang menggantung di paling bawah
+    // Bersihkan sisa spasi atau karakter bintang menggantung di paling bawah
     clean = clean.trim().replace(/[\s\*]+$/, '');
 
     // 4. Pastikan struktur wajib: Disclaimer Medis di paling atas

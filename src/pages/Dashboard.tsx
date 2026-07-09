@@ -24,25 +24,48 @@ const cleanMessageText = (rawText: string): string => {
     if (!rawText) return "";
     let clean = rawText;
 
-    // 1. Potong paksa jika mendeteksi teks "Thinking Process:" di awal atau di tengah
+    // Hapus tag <think>...</think> jika ada
+    clean = clean.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    clean = clean.replace(/<think>[\s\S]*/gi, '').trim();
+
+    // Hapus "Thinking Process:" jika berada di awal/dekat awal, atau potong jika di akhir
     if (clean.includes("Thinking Process:")) {
-        clean = clean.split("Thinking Process:")[0];
+        const idx = clean.indexOf("Thinking Process:");
+        if (idx < 150) {
+            let content = clean.substring(idx + "Thinking Process:".length).trim();
+            if (content.includes("\n\n")) {
+                const subParts = content.split("\n\n");
+                const firstPart = subParts[0].trim();
+                const looksLikeReasoning = firstPart.startsWith("-") || firstPart.startsWith("*") || /^\d+\./.test(firstPart) || firstPart.toLowerCase().includes("should") || firstPart.toLowerCase().includes("will suggest") || firstPart.toLowerCase().includes("user");
+                if (looksLikeReasoning) {
+                    content = subParts.slice(1).join("\n\n").trim();
+                } else {
+                    content = subParts.slice(1).join("\n\n").trim();
+                }
+            }
+            clean = content;
+        } else {
+            clean = clean.split("Thinking Process:")[0].trim();
+        }
     }
 
-    // 2. Potong paksa jika mendeteksi tanda asteris kembar (* *Wait, * *Okay) di bagian ekor
+    // Hapus "* *" jika berada di awal/dekat awal, atau potong jika di akhir
     if (clean.includes("* *")) {
-        clean = clean.split("* *")[0];
+        const parts = clean.split("* *");
+        if (parts.length >= 3) {
+            clean = parts[parts.length - 1].trim();
+        } else {
+            const idx = clean.indexOf("* *");
+            if (idx < 150) {
+                clean = parts[1] ? parts[1].trim() : clean;
+            } else {
+                clean = parts[0].trim();
+            }
+        }
     }
 
-    // 3. Bersihkan sisa spasi atau karakter bintang menggantung di paling bawah
+    // Bersihkan sisa spasi atau karakter bintang menggantung di paling bawah
     clean = clean.trim().replace(/[\s\*]+$/, '');
-
-    // 4. Pastikan struktur wajib: Disclaimer Medis di paling atas
-    const disclaimer = "This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.";
-    if (!clean.startsWith(disclaimer) && !clean.startsWith(`> ${disclaimer}`)) {
-        clean = clean.replace(/^This AI analysis is informative.*?\n+/gi, '');
-        clean = `> ${disclaimer}\n\n${clean.trim()}`;
-    }
 
     return clean;
 };
@@ -50,41 +73,6 @@ const cleanMessageText = (rawText: string): string => {
 // Alias lokal — semua panggilan tetap bisa pakai nama lama ini
 const cutLeakedReasoning = cleanMessageText;
 
-// Helper: konversi markdown sederhana ke HTML untuk AI Insights
-const formatInsightsHtml = (text: string): string => {
-  if (!text) return '';
-  let clean = cutLeakedReasoning(text);
-
-  // Escape HTML
-  let html = clean
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-
-  // Blockquotes (> text)
-  html = html.replace(/^&gt;\s*(.*)$/gm, '<blockquote>$1</blockquote>');
-
-  // Disclaimer standalone sebagai blockquote
-  html = html.replace(/^(This AI analysis is informative[^\n]*)$/gim, '<blockquote>$1</blockquote>');
-
-  // Bold **text**
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
-  // Headings ## dan ###
-  html = html.replace(/^##\s*(.*)$/gm, '<h2>$1</h2>');
-  html = html.replace(/^###\s*(.*)$/gm, '<h3>$1</h3>');
-
-  // Hapus sisa bintang/hash yang belum diproses
-  html = html.replace(/\*/g, '').replace(/#/g, '');
-
-  // Paragraf
-  const blocks = html.split(/\n\n+/);
-  return blocks.map(b => {
-    const t = b.trim();
-    if (t.startsWith('<blockquote>') || t.startsWith('<h2>') || t.startsWith('<h3>')) return t;
-    return `<p>${t.replace(/\n/g, '<br/>')}</p>`;
-  }).join('');
-};
 
 export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) => {
   const { user, logout, updateUser } = useAuth();
@@ -1916,11 +1904,29 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
                    <h3 className="font-bold text-slate-800 dark:text-white">AI Health Insights</h3>
                  </div>
               </div>
-              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100 dark:border-emerald-900 prose prose-sm prose-emerald max-w-none dark:prose-invert">
-                {displayedAiInsights
-                  ? <div className="text-sm text-emerald-800 dark:text-emerald-400 leading-relaxed insights-content" dangerouslySetInnerHTML={{ __html: formatInsightsHtml(displayedAiInsights) }} />
-                  : <p className="text-sm text-emerald-800 dark:text-emerald-400 leading-relaxed italic">Welcome! Log some data daily for AI analysis.</p>
-                }
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100 dark:border-emerald-900">
+                {(() => {
+                  let finalCleanInsights = displayedAiInsights || "";
+
+                  if (typeof finalCleanInsights === 'string') {
+                      if (finalCleanInsights.includes("Thinking Process:")) {
+                          finalCleanInsights = finalCleanInsights.split("Thinking Process:")[0];
+                      }
+                      if (finalCleanInsights.includes("* *")) {
+                          finalCleanInsights = finalCleanInsights.split("* *")[0];
+                      }
+                      // Hapus simbol markdown mentah agar tidak mengotori <p>
+                      finalCleanInsights = finalCleanInsights
+                          .replace(/[#>-\\*]+/g, '') // Bersihkan simbol ##, **, >, *
+                          .trim();
+                  }
+
+                  return (
+                    <p className="text-sm text-emerald-800 dark:text-emerald-400 leading-relaxed italic">
+                      {finalCleanInsights || "Welcome! Log some data daily for AI analysis."}
+                    </p>
+                  );
+                })()}
               </div>
            </motion.section>
         </div>
