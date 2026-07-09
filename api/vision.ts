@@ -16,39 +16,46 @@ Rules:
 
 /no_think`;
 
-/**
- * Extract ONLY the clean user-facing response from Qwen3 output.
- * Slices from the last occurrence of "##" heading to retrieve only the final content.
- */
 function extractCleanResponse(text: string): string {
   // Step 0: Remove <think>...</think> blocks
-  let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  let rawText = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
 
-  // Step 1: Find the last occurrence of "##" in the text
-  const lastHeadingIndex = cleaned.lastIndexOf("##");
+  // 1. Bersihkan duplikasi teks disclaimer bawaan di bagian atas jika ada
+  rawText = rawText.replace(/^(This AI analysis is informative and does not replace professional medical consultation\. Please consult a licensed medical professional\.\s*)+/gi, '');
+  rawText = rawText.replace(/^(>\s*This AI analysis is informative and does not replace professional medical consultation\. Please consult a licensed medical professional\.\s*)+/gi, '');
 
-  if (lastHeadingIndex !== -1) {
-    // Take only the content from the last "##" to the end
-    const cleanContent = cleaned.substring(lastHeadingIndex);
-    
-    // Prepend the mandatory disclaimer line at the top
-    cleaned = `This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.\n\n${cleanContent}`;
+  // 2. Cari di mana letak teks batin atau instruksi internal terakhir berakhir.
+  // Kita cari tanda "##" paling terakhir di dalam dokumen.
+  const finalOutputIndex = rawText.lastIndexOf("##");
+
+  if (finalOutputIndex !== -1) {
+    // Potong total! Ambil HANYA jawaban akhir dari tanda ## tersebut ke bawah
+    rawText = rawText.substring(finalOutputIndex);
   } else {
-    // Fallback: If no "##" is found, ensure there's exactly one disclaimer at the top
-    cleaned = cleaned.replace(/^>\s*This AI analysis is informative[^\n]*\n*/gm, '').trim();
-    cleaned = cleaned.replace(/^This AI analysis is informative[^\n]*\n*/gm, '').trim();
-    cleaned = `This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.\n\n${cleaned}`;
+    // Jika tidak ada ##, cari baris baru terakhir yang mengandung teks sapaan/kesimpulan (fallback)
+    const lines = rawText.split('\n');
+    const cleanLines = lines.filter(line => 
+      !line.includes("Analyze") && 
+      !line.includes("Drafting") && 
+      !line.includes("Output ONLY") && 
+      !line.includes("flag is present") &&
+      !line.match(/^\s*[\*\d\.-]\s*$/)
+    );
+    rawText = cleanLines.join('\n').trim();
   }
 
-  // Step 2: Clean trailing review check blocks or code fence leftovers
-  cleaned = cleaned
+  // 3. Rakit ulang secara paksa: Selipkan satu buah Disclaimer Wajib di baris paling atas
+  rawText = `This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.\n\n${rawText.trim()}`;
+
+  // 4. Clean trailing review check blocks or code fence leftovers
+  rawText = rawText
     .replace(/\n*\s*Review against constraints:[\s\S]*/i, '')
     .replace(/\*\*+$/, '')
     .replace(/\n+\s*\d+\.?\s*$/, '') // remove trailing standalone numbers like "4."
     .replace(/\n+\s*[-*+]\s*$/, '')   // remove trailing bullet symbols
     .trim();
 
-  return cleaned;
+  return rawText;
 }
 
 export const runVision = async (prompt: string, imageBase64: string, mimeType = 'image/jpeg') => {
