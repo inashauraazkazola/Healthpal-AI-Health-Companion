@@ -111,8 +111,6 @@ export const runChat = async (prompt: string) => {
       messages,
       temperature: 0.6,
       max_tokens: 500,
-      // Disable Qwen3 chain-of-thought thinking mode
-      enable_thinking: false,
     }),
   });
 

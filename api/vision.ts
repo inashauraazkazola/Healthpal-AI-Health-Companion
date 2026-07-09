@@ -100,8 +100,6 @@ export const runVision = async (prompt: string, imageBase64: string, mimeType = 
       messages,
       temperature: 0.6,
       max_tokens: 600,
-      // Disable Qwen3 chain-of-thought thinking mode
-      enable_thinking: false,
     }),
   });
 
