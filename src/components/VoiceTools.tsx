@@ -35,7 +35,8 @@ export const speakText = (text: string, language: string = 'en-US', onStateChang
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
   
-  const chunks = text.match(/.{1,200}(\s|$)/g) || [text];
+  const cleanTextForSpeech = text.replace(/[\*#_>]/g, '').trim();
+  const chunks = cleanTextForSpeech.match(/.{1,200}(\s|$)/g) || [cleanTextForSpeech];
   
   chunks.forEach((chunk, index) => {
     const utterance = new SpeechSynthesisUtterance(chunk.trim());

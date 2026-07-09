@@ -29,6 +29,9 @@ function formatMessageToHtml(text: string): string {
   html = html.replace(/^##\s*(.*)$/gm, '<h2>$1</h2>');
   html = html.replace(/^###\s*(.*)$/gm, '<h3>$1</h3>');
 
+  // Strip all remaining raw asterisks (*) and hash symbols (#) from the text
+  html = html.replace(/\*/g, '').replace(/#/g, '');
+
   // Process paragraphs
   const blocks = html.split(/\n\n+/);
   const processedBlocks = blocks.map(block => {
