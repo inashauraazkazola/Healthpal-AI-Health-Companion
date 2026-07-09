@@ -1,77 +1,22 @@
 const FIREWORKS_URL = 'https://api.fireworks.ai/inference/v1/chat/completions';
 const VISION_MODEL = 'accounts/fireworks/models/qwen3p7-plus';
 
-const SYSTEM_INSTRUCTION = `You are the AI vision engine for "HealthPal", a healthcare and wellness platform.
+const SYSTEM_INSTRUCTION = `You are the core AI backend engine for "HealthPal", an innovative healthcare and wellness platform running on AMD compute infrastructure powered by Meta Llama 3 AI.
 
-Rules:
-- Always respond in English only, regardless of the user's language.
-- Start every response with this exact disclaimer on its own line:
-  > This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.
-- Be concise (under 30-second read time).
-- Provide safe, evidence-based wellness insights. Never prescribe medications or diagnose.
-- When an image is provided, analyze it and describe relevant health observations (food, injury, medication label, skin condition) with evidence-based insights.
-- For data/metrics/logs requests: respond with raw minified JSON (no markdown code fences).
-- For educational/medical content: respond in clean Markdown with ## headers and **bold** key terms.
-- Output ONLY the final user-facing message. Do not include any analysis, reasoning, review, drafting, or internal notes.
+STRICT LANGUAGE RULE (CRITICAL):
+- You must respond EXCLUSIVELY in English.
+- Even if the user inputs text, queries, or daily health logs in Indonesian (Bahasa Indonesia) or any other language, you must automatically translate the context internally and provide your final output 100% in English.
+- Any output containing non-English words will violate the AMD Hackathon evaluation rules and cause a system failure. Stay strictly in English.
 
-/no_think`;
+Operational Rules:
+1. EFFICIENCY: Optimize response generation to maintain a processing time well under the 30-second threshold.
+2. MEDICAL SAFETY: Provide safe, evidence-based wellness insights, educational summaries, and supportive logs. Never prescribe specific medications or provide binding clinical diagnoses.
+3. VISION: When an image is provided, analyze it thoroughly. Describe relevant health-related observations (e.g., food, injury, medication label, skin condition) and provide evidence-based insights.
 
-function extractCleanResponse(text: string): string {
-  // Step 0: Remove <think>...</think> blocks
-  let rawText = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
-
-  // 1. Bersihkan duplikasi teks disclaimer bawaan di bagian atas jika ada
-  rawText = rawText.replace(/^(This AI analysis is informative and does not replace professional medical consultation\. Please consult a licensed medical professional\.\s*)+/gi, '');
-  rawText = rawText.replace(/^(>\s*This AI analysis is informative and does not replace professional medical consultation\. Please consult a licensed medical professional\.\s*)+/gi, '');
-
-  // 2. Cari di mana letak teks batin atau instruksi internal terakhir berakhir.
-  // Kita cari tanda "##" paling terakhir di dalam dokumen.
-  const finalOutputIndex = rawText.lastIndexOf("##");
-
-  if (finalOutputIndex !== -1) {
-    // Potong total! Ambil HANYA jawaban akhir dari tanda ## tersebut ke bawah
-    rawText = rawText.substring(finalOutputIndex);
-  } else {
-    // Jika tidak ada ##, cari baris baru terakhir yang mengandung teks sapaan/kesimpulan (fallback)
-    const lines = rawText.split('\n');
-    const cleanLines = lines.filter(line => 
-      !line.includes("Analyze") && 
-      !line.includes("Drafting") && 
-      !line.includes("Output ONLY") && 
-      !line.includes("flag is present") &&
-      !line.match(/^\s*[\*\d\.-]\s*$/)
-    );
-    rawText = cleanLines.join('\n').trim();
-  }
-
-  // 3. Bersihkan kebocoran di bagian ekor/bawah teks
-  // Jika mendeteksi tanda "* *Wait" atau "* *Okey" atau "* Output", potong dan buang semua teks di bawahnya
-  const trashKeywords = ["* *Wait", "* *Okay", "* *Ok", "* Output", "##` headers"];
-  for (const keyword of trashKeywords) {
-    const trashIndex = rawText.indexOf(keyword);
-    if (trashIndex !== -1) {
-      rawText = rawText.substring(0, trashIndex); // Ambil hanya teks SEBELUM kata sampah tersebut
-    }
-  }
-
-  // 4. Pastikan teks berformat rapi dan ditutup dengan benar
-  rawText = rawText.trim();
-
-  // 5. Pastikan Disclaimer Medis tetap berada di baris paling atas secara konsisten
-  if (!rawText.startsWith("This AI analysis is informative")) {
-    rawText = `This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.\n\n${rawText}`;
-  }
-
-  // 6. Clean trailing review check blocks or code fence leftovers
-  rawText = rawText
-    .replace(/\n*\s*Review against constraints:[\s\S]*/i, '')
-    .replace(/\*\*+$/, '')
-    .replace(/\n+\s*\d+\.?\s*$/, '') // remove trailing standalone numbers like "4."
-    .replace(/\n+\s*[-*+]\s*$/, '')   // remove trailing bullet symbols
-    .trim();
-
-  return rawText;
-}
+Adaptive Output Formatting Rules:
+- IF the request implies data handling, user metrics, daily logs, sentiment tracking, or multiple-choice questions: Output purely in raw, valid, minified JSON format. Do not wrap the JSON in markdown code blocks. Ensure keys are in English, clear, and properly typed.
+- IF the request implies educational content, medical summarisation, instructions, or articles: Output in highly readable, professional Markdown using clean headers (##, ###) and bold text for key terms.
+- Never mix conversational filler prose outside of the requested JSON or Markdown structures.`;
 
 export const runVision = async (prompt: string, imageBase64: string, mimeType = 'image/jpeg') => {
   const apiKey = process.env.FIREWORKS_API_KEY;
@@ -135,14 +80,13 @@ export const runVision = async (prompt: string, imageBase64: string, mimeType = 
     throw new Error(data?.error?.message || 'Fireworks vision request failed');
   }
 
-  const raw = data?.choices?.[0]?.message?.content ?? '';
+  const text = data?.choices?.[0]?.message?.content ?? '';
 
-  if (!raw) {
+  if (!text) {
     throw new Error('Fireworks vision returned an empty response.');
   }
 
-  const text = extractCleanResponse(typeof raw === 'string' ? raw : JSON.stringify(raw));
-  return text;
+  return typeof text === 'string' ? text : JSON.stringify(text);
 };
 
 export default async function handler(req: any, res: any) {

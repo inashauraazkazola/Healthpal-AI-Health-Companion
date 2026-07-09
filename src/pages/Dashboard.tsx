@@ -13,12 +13,39 @@ import { cn } from '../lib/utils';
 import { jsPDF } from 'jspdf';
 import { motion, AnimatePresence, Variants } from 'motion/react';
 import { BottomNav, TabType } from '../components/BottomNav';
-import { AI_DISCLAIMER, proxyChat, cleanMessageText } from '../lib/ai';
+import { AI_DISCLAIMER, proxyChat } from '../lib/ai';
 import { speakText as speakTextShared, useSpeechRecognition, VoiceInputButton as VoiceInputButtonShared } from '../components/VoiceTools';
 import { HealthData } from '../types';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend, Brush, LineChart, Line 
 } from 'recharts';
+
+const cleanMessageText = (rawText: string): string => {
+    if (!rawText) return "";
+    let clean = rawText;
+
+    // 1. Potong paksa jika mendeteksi teks "Thinking Process:" di awal atau di tengah
+    if (clean.includes("Thinking Process:")) {
+        clean = clean.split("Thinking Process:")[0];
+    }
+
+    // 2. Potong paksa jika mendeteksi tanda asteris kembar (* *Wait, * *Okay) di bagian ekor
+    if (clean.includes("* *")) {
+        clean = clean.split("* *")[0];
+    }
+
+    // 3. Bersihkan sisa spasi atau karakter bintang menggantung di paling bawah
+    clean = clean.trim().replace(/[\s\*]+$/, '');
+
+    // 4. Pastikan struktur wajib: Disclaimer Medis di paling atas
+    const disclaimer = "This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.";
+    if (!clean.startsWith(disclaimer) && !clean.startsWith(`> ${disclaimer}`)) {
+        clean = clean.replace(/^This AI analysis is informative.*?\n+/gi, '');
+        clean = `> ${disclaimer}\n\n${clean.trim()}`;
+    }
+
+    return clean;
+};
 
 // Alias lokal — semua panggilan tetap bisa pakai nama lama ini
 const cutLeakedReasoning = cleanMessageText;

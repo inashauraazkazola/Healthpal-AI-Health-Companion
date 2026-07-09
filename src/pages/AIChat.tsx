@@ -1,13 +1,39 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../hooks/usePersistence';
-import { proxyChat, AI_DISCLAIMER, cleanMessageText } from '../lib/ai';
+import { proxyChat, AI_DISCLAIMER } from '../lib/ai';
 import { PalBuddy } from '../components/PalBuddy';
 import { Send, ArrowLeft, Bot, User, ShieldAlert, Volume2, Mic, MicOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { VoiceInputButton, speakText } from '../components/VoiceTools';
 
-// Alias lokal — menggunakan cleanMessageText terpusat dari lib/ai
+const cleanMessageText = (rawText: string): string => {
+    if (!rawText) return "";
+    let clean = rawText;
+
+    // 1. Potong paksa jika mendeteksi teks "Thinking Process:" di awal atau di tengah
+    if (clean.includes("Thinking Process:")) {
+        clean = clean.split("Thinking Process:")[0];
+    }
+
+    // 2. Potong paksa jika mendeteksi tanda asteris kembar (* *Wait, * *Okay) di bagian ekor
+    if (clean.includes("* *")) {
+        clean = clean.split("* *")[0];
+    }
+
+    // 3. Bersihkan sisa spasi atau karakter bintang menggantung di paling bawah
+    clean = clean.trim().replace(/[\s\*]+$/, '');
+
+    // 4. Pastikan struktur wajib: Disclaimer Medis di paling atas
+    const disclaimer = "This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.";
+    if (!clean.startsWith(disclaimer) && !clean.startsWith(`> ${disclaimer}`)) {
+        clean = clean.replace(/^This AI analysis is informative.*?\n+/gi, '');
+        clean = `> ${disclaimer}\n\n${clean.trim()}`;
+    }
+
+    return clean;
+};
+
 const cutLeakedReasoning = cleanMessageText;
 
 
@@ -170,10 +196,7 @@ export const AIChat = ({ onBack }: { onBack: () => void }) => {
           {messages.map((msg, i) => {
             let cleanText: string = msg.content;
             if (msg.role === 'ai') {
-              if (cleanText.includes("* *")) {
-                cleanText = cleanText.split("* *")[0];
-              }
-              cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
+              cleanText = cleanMessageText(cleanText);
             }
             return (
               <motion.div 

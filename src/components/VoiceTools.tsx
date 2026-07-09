@@ -1,7 +1,32 @@
 import { useState } from 'react';
 import { Mic, MicOff } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { cleanMessageText } from '../lib/ai';
+const cleanMessageText = (rawText: string): string => {
+    if (!rawText) return "";
+    let clean = rawText;
+
+    // 1. Potong paksa jika mendeteksi teks "Thinking Process:" di awal atau di tengah
+    if (clean.includes("Thinking Process:")) {
+        clean = clean.split("Thinking Process:")[0];
+    }
+
+    // 2. Potong paksa jika mendeteksi tanda asteris kembar (* *Wait, * *Okay) di bagian ekor
+    if (clean.includes("* *")) {
+        clean = clean.split("* *")[0];
+    }
+
+    // 3. Bersihkan sisa spasi atau karakter bintang menggantung di paling bawah
+    clean = clean.trim().replace(/[\s\*]+$/, '');
+
+    // 4. Pastikan struktur wajib: Disclaimer Medis di paling atas
+    const disclaimer = "This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.";
+    if (!clean.startsWith(disclaimer) && !clean.startsWith(`> ${disclaimer}`)) {
+        clean = clean.replace(/^This AI analysis is informative.*?\n+/gi, '');
+        clean = `> ${disclaimer}\n\n${clean.trim()}`;
+    }
+
+    return clean;
+};
 
 export const useSpeechRecognition = (onResult: (text: string) => void, language: string = 'en-US') => {
   const [isListening, setIsListening] = useState(false);

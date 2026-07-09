@@ -1,12 +1,39 @@
 import { useState, useRef, useEffect } from 'react';
 import { Camera, ArrowLeft, Upload, ShieldAlert, CheckCircle2, Loader2, FileSearch, Mic, MicOff, Volume2, X, Zap } from 'lucide-react';
 import { PalBuddy } from '../components/PalBuddy';
-import { proxyChat, AI_DISCLAIMER, cleanMessageText } from '../lib/ai';
+import { proxyChat, AI_DISCLAIMER } from '../lib/ai';
 import { cn } from '../lib/utils';
 
 import { useAuth } from '../hooks/usePersistence';
 import { VoiceInputButton, speakText } from '../components/VoiceTools';
 import { motion, AnimatePresence } from 'motion/react';
+
+const cleanMessageText = (rawText: string): string => {
+    if (!rawText) return "";
+    let clean = rawText;
+
+    // 1. Potong paksa jika mendeteksi teks "Thinking Process:" di awal atau di tengah
+    if (clean.includes("Thinking Process:")) {
+        clean = clean.split("Thinking Process:")[0];
+    }
+
+    // 2. Potong paksa jika mendeteksi tanda asteris kembar (* *Wait, * *Okay) di bagian ekor
+    if (clean.includes("* *")) {
+        clean = clean.split("* *")[0];
+    }
+
+    // 3. Bersihkan sisa spasi atau karakter bintang menggantung di paling bawah
+    clean = clean.trim().replace(/[\s\*]+$/, '');
+
+    // 4. Pastikan struktur wajib: Disclaimer Medis di paling atas
+    const disclaimer = "This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.";
+    if (!clean.startsWith(disclaimer) && !clean.startsWith(`> ${disclaimer}`)) {
+        clean = clean.replace(/^This AI analysis is informative.*?\n+/gi, '');
+        clean = `> ${disclaimer}\n\n${clean.trim()}`;
+    }
+
+    return clean;
+};
 
 function formatMessageToHtml(text: string): string {
   if (!text) return '';

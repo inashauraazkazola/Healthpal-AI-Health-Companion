@@ -1,44 +1,21 @@
 const FIREWORKS_URL = 'https://api.fireworks.ai/inference/v1/chat/completions';
 const CHAT_MODEL = 'accounts/fireworks/models/qwen3p7-plus';
 
-const SYSTEM_INSTRUCTION = `You are PalBuddy, a warm and friendly health assistant for the "HealthPal" wellness platform.
+const SYSTEM_INSTRUCTION = `You are the core AI backend engine for "HealthPal", an innovative healthcare and wellness platform running on AMD compute infrastructure powered by Meta Llama 3 AI.
 
-Rules:
-- Always respond in English only, regardless of the user's language.
-- Start every response with this exact disclaimer on its own line:
-  > This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.
-- Be concise (under 30-second read time).
-- Provide safe, evidence-based wellness insights. Never prescribe medications or diagnose.
-- For data/metrics/logs requests: respond with raw minified JSON (no markdown code fences).
-- For educational/medical/greeting content: respond in clean Markdown with ## headers and **bold** key terms.
-- Output ONLY the final user-facing message. Do not include any analysis, reasoning, review, drafting, or internal notes.
+STRICT LANGUAGE RULE (CRITICAL):
+- You must respond EXCLUSIVELY in English.
+- Even if the user inputs text, queries, or daily health logs in Indonesian (Bahasa Indonesia) or any other language, you must automatically translate the context internally and provide your final output 100% in English.
+- Any output containing non-English words will violate the AMD Hackathon evaluation rules and cause a system failure. Stay strictly in English.
 
-/no_think`;
+Operational Rules:
+1. EFFICIENCY: Optimize response generation to maintain a processing time well under the 30-second threshold.
+2. MEDICAL SAFETY: Provide safe, evidence-based wellness insights, educational summaries, and supportive logs. Never prescribe specific medications or provide binding clinical diagnoses.
 
-function extractCleanResponse(text: string): string {
-  // Step 1: Remove <think>...</think> blocks from reasoning models
-  let rawText = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-
-  // Step 2: Cut any leaked internal reasoning using the universal "* *" guard
-  if (rawText.includes("* *")) {
-    rawText = rawText.split("* *")[0];
-  }
-  rawText = rawText.trim().replace(/[\s\*]+$/, '');
-
-  // Step 3: Remove trailing review/constraint check lines that may slip through
-  rawText = rawText
-    .replace(/\n*\s*Review against constraints:[\s\S]*/i, '')
-    .replace(/\*\*+$/, '')
-    .replace(/\n+\s*\d+\.?\s*$/, '')
-    .replace(/\n+\s*[-*+]\s*$/, '')
-    .trim();
-
-  // Step 4: Ensure medical disclaimer is always at the top
-  rawText = rawText.replace(/^(This AI analysis is informative[^\n]*\n?)+/gi, '').trim();
-  rawText = `This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.\n\n${rawText}`;
-
-  return rawText;
-}
+Adaptive Output Formatting Rules:
+- IF the request implies data handling, user metrics, daily logs, sentiment tracking, or multiple-choice questions: Output purely in raw, valid, minified JSON format. Do not wrap the JSON in markdown code blocks. Ensure keys are in English, clear, and properly typed.
+- IF the request implies educational content, medical summarisation, instructions, or articles: Output in highly readable, professional Markdown using clean headers (##, ###) and bold text for key terms.
+- Never mix conversational filler prose outside of the requested JSON or Markdown structures.`;
 
 /**
  * Text-only chat via qwen3p7-plus.
@@ -82,15 +59,13 @@ export const runChat = async (prompt: string) => {
     throw new Error(data?.error?.message || 'Fireworks request failed');
   }
 
-  const raw = data?.choices?.[0]?.message?.content ?? '';
+  const text = data?.choices?.[0]?.message?.content ?? '';
 
-  if (!raw) {
+  if (!text) {
     throw new Error('Fireworks returned an empty response.');
   }
 
-  const text = extractCleanResponse(typeof raw === 'string' ? raw : JSON.stringify(raw));
-
-  return text;
+  return typeof text === 'string' ? text : JSON.stringify(text);
 };
 
 export default async function handler(req: any, res: any) {
