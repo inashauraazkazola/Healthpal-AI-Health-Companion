@@ -79,9 +79,10 @@ const cleanMessageText = (rawText: string): string => {
     // 6. Bersihkan sisa spasi atau karakter bintang menggantung di paling bawah
     clean = clean.trim().replace(/[\s\*]+$/, '');
 
-    // 4. Pastikan struktur wajib: Disclaimer Medis di paling atas
+    // 4. Pastikan struktur wajib: Disclaimer Medis di paling atas (hanya jika bukan respon terstruktur baru)
     const disclaimer = "This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.";
-    if (!clean.startsWith(disclaimer) && !clean.startsWith(`> ${disclaimer}`)) {
+    const hasNewStructure = clean.toUpperCase().includes("CATATAN MEDIS") || clean.toUpperCase().includes("SALAM DAN EMPATI");
+    if (!hasNewStructure && !clean.startsWith(disclaimer) && !clean.startsWith(`> ${disclaimer}`)) {
         clean = clean.replace(/^This AI analysis is informative.*?\n+/gi, '');
         clean = `> ${disclaimer}\n\n${clean.trim()}`;
     }
