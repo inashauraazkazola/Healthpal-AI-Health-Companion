@@ -16,58 +16,26 @@ Rules:
 /no_think`;
 
 function extractCleanResponse(text: string): string {
-  // Step 0: Remove <think>...</think> blocks
-  let rawText = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  // Step 1: Remove <think>...</think> blocks from reasoning models
+  let rawText = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
-  // 1. Bersihkan duplikasi teks disclaimer bawaan di bagian atas jika ada
-  rawText = rawText.replace(/^(This AI analysis is informative and does not replace professional medical consultation\. Please consult a licensed medical professional\.\s*)+/gi, '');
-  rawText = rawText.replace(/^(>\s*This AI analysis is informative and does not replace professional medical consultation\. Please consult a licensed medical professional\.\s*)+/gi, '');
-
-  // 2. Cari di mana letak teks batin atau instruksi internal terakhir berakhir.
-  // Kita cari tanda "##" paling terakhir di dalam dokumen.
-  const finalOutputIndex = rawText.lastIndexOf("##");
-
-  if (finalOutputIndex !== -1) {
-    // Potong total! Ambil HANYA jawaban akhir dari tanda ## tersebut ke bawah
-    rawText = rawText.substring(finalOutputIndex);
-  } else {
-    // Jika tidak ada ##, cari baris baru terakhir yang mengandung teks sapaan/kesimpulan (fallback)
-    const lines = rawText.split('\n');
-    const cleanLines = lines.filter(line => 
-      !line.includes("Analyze") && 
-      !line.includes("Drafting") && 
-      !line.includes("Output ONLY") && 
-      !line.includes("flag is present") &&
-      !line.match(/^\s*[\*\d\.-]\s*$/)
-    );
-    rawText = cleanLines.join('\n').trim();
+  // Step 2: Cut any leaked internal reasoning using the universal "* *" guard
+  if (rawText.includes("* *")) {
+    rawText = rawText.split("* *")[0];
   }
+  rawText = rawText.trim().replace(/[\s\*]+$/, '');
 
-  // 3. Bersihkan kebocoran di bagian ekor/bawah teks
-  // Jika mendeteksi tanda "* *Wait" atau "* *Okey" atau "* Output", potong dan buang semua teks di bawahnya
-  const trashKeywords = ["* *Wait", "* *Okay", "* *Ok", "* Output", "##` headers"];
-  for (const keyword of trashKeywords) {
-    const trashIndex = rawText.indexOf(keyword);
-    if (trashIndex !== -1) {
-      rawText = rawText.substring(0, trashIndex); // Ambil hanya teks SEBELUM kata sampah tersebut
-    }
-  }
-
-  // 4. Pastikan teks berformat rapi dan ditutup dengan benar
-  rawText = rawText.trim();
-
-  // 5. Pastikan Disclaimer Medis tetap berada di baris paling atas secara konsisten
-  if (!rawText.startsWith("This AI analysis is informative")) {
-    rawText = `This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.\n\n${rawText}`;
-  }
-
-  // 6. Clean trailing review check blocks or code fence leftovers
+  // Step 3: Remove trailing review/constraint check lines that may slip through
   rawText = rawText
     .replace(/\n*\s*Review against constraints:[\s\S]*/i, '')
     .replace(/\*\*+$/, '')
-    .replace(/\n+\s*\d+\.?\s*$/, '') // remove trailing standalone numbers like "4."
-    .replace(/\n+\s*[-*+]\s*$/, '')   // remove trailing bullet symbols
+    .replace(/\n+\s*\d+\.?\s*$/, '')
+    .replace(/\n+\s*[-*+]\s*$/, '')
     .trim();
+
+  // Step 4: Ensure medical disclaimer is always at the top
+  rawText = rawText.replace(/^(This AI analysis is informative[^\n]*\n?)+/gi, '').trim();
+  rawText = `This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.\n\n${rawText}`;
 
   return rawText;
 }
