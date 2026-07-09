@@ -1,5 +1,5 @@
 const FIREWORKS_URL = 'https://api.fireworks.ai/inference/v1/chat/completions';
-const VISION_MODEL = 'accounts/fireworks/models/llama-v3p2-11b-vision-instruct';
+const VISION_MODEL = 'accounts/fireworks/models/qwen2-vl-7b-instruct';
 
 const SYSTEM_INSTRUCTION = `You are the core AI backend engine for "HealthPal", an innovative healthcare and wellness platform running on AMD compute infrastructure powered by Meta Llama 3 AI.
 
