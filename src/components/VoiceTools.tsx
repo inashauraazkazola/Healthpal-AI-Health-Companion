@@ -5,34 +5,24 @@ const cleanMessageText = (rawText: string): string => {
     if (!rawText) return "";
     let clean = rawText;
 
-    // 1. Hapus tag <think>...</think> jika ada
+    // 1. Remove <think>...</think> blocks (chain-of-thought tags)
     clean = clean.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
     clean = clean.replace(/<think>[\s\S]*/gi, '').trim();
 
-    // 2. Jika teks mengandung "Final Polish" atau "Final Polish:" (proses berpikir bertahap),
-    //    ambil hanya teks setelah "Final Polish"
+    // 2. If text contains 'Final Polish' — only keep the text after it
     const finalPolishRegex = /Final\s+Polish\s*:?\s*/i;
     if (finalPolishRegex.test(clean)) {
         const parts = clean.split(finalPolishRegex);
-        if (parts.length > 1) {
-            clean = parts[parts.length - 1].trim();
-        }
+        if (parts.length > 1) clean = parts[parts.length - 1].trim();
     }
 
-    // 3. Hapus "Thinking Process:" jika berada di awal/dekat awal, atau potong jika di akhir
+    // 3. Remove 'Thinking Process:' block if near the top
     if (clean.includes("Thinking Process:")) {
         const idx = clean.indexOf("Thinking Process:");
         if (idx < 150) {
             let content = clean.substring(idx + "Thinking Process:".length).trim();
             if (content.includes("\n\n")) {
-                const subParts = content.split("\n\n");
-                const firstPart = subParts[0].trim();
-                const looksLikeReasoning = firstPart.startsWith("-") || firstPart.startsWith("*") || /^\d+\./.test(firstPart) || firstPart.toLowerCase().includes("should") || firstPart.toLowerCase().includes("will suggest") || firstPart.toLowerCase().includes("user") || firstPart.toLowerCase().includes("constraints");
-                if (looksLikeReasoning) {
-                    content = subParts.slice(1).join("\n\n").trim();
-                } else {
-                    content = subParts.slice(1).join("\n\n").trim();
-                }
+                content = content.split("\n\n").slice(1).join("\n\n").trim();
             }
             clean = content;
         } else {
@@ -40,7 +30,7 @@ const cleanMessageText = (rawText: string): string => {
         }
     }
 
-    // 4. Jika teks mengandung "Analyze the Request:" di awal (proses berpikir bertahap yang bocor)
+    // 4. Remove 'Analyze the Request:' block if near the top
     if (clean.includes("Analyze the Request:")) {
         const idx = clean.indexOf("Analyze the Request:");
         if (idx < 150) {
@@ -49,11 +39,12 @@ const cleanMessageText = (rawText: string): string => {
                 const subParts = content.split("\n\n");
                 const filteredParts = subParts.filter(p => {
                     const t = p.trim().toLowerCase();
-                    return !(t.startsWith('-') || t.startsWith('*') || /^\d+\./.test(t) || t.includes("determine the output") || t.includes("draft the content") || t.includes("check constraints") || t.includes("refine the output") || t.includes("final polish"));
+                    return !(t.startsWith('-') || t.startsWith('*') || /^\d+\./.test(t)
+                        || t.includes("determine the output") || t.includes("draft the content")
+                        || t.includes("check constraints") || t.includes("refine the output")
+                        || t.includes("final polish"));
                 });
-                if (filteredParts.length > 0) {
-                    content = filteredParts.join("\n\n").trim();
-                }
+                if (filteredParts.length > 0) content = filteredParts.join("\n\n").trim();
             }
             clean = content;
         } else {
@@ -61,31 +52,47 @@ const cleanMessageText = (rawText: string): string => {
         }
     }
 
-    // 5. Hapus "* *" jika berada di awal/dekat awal, atau potong jika di akhir
+    // 5. Remove '* *' separator (leaked reasoning boundary)
     if (clean.includes("* *")) {
         const parts = clean.split("* *");
         if (parts.length >= 3) {
             clean = parts[parts.length - 1].trim();
         } else {
             const idx = clean.indexOf("* *");
-            if (idx < 150) {
-                clean = parts[1] ? parts[1].trim() : clean;
-            } else {
-                clean = parts[0].trim();
-            }
+            clean = idx < 150 ? (parts[1] ? parts[1].trim() : clean) : parts[0].trim();
         }
     }
 
-    // 6. Bersihkan sisa spasi atau karakter bintang menggantung di paling bawah
+    // 6. Strip leaked reasoning keyword lines
+    const reasoningLinePattern = /^(?:\d+\.\s*|[-*]\s*)?\b(?:Determine|Drafting|Draft|Review|Refine|Formulate|Thinking|Process|Context|Rule|Constraint|Translate|Interpret|Analyze|Output format|Identify|Consider|Step \d+)\b.*$/gim;
+    clean = clean.replace(reasoningLinePattern, '');
+
+    // 7. Strip decorative instruction labels from leaked drafts
+    clean = clean.replace(/Heading\s*\d*\s*:\s*/gi, '');
+    clean = clean.replace(/Content\s*\d*\s*:\s*/gi, '');
+    clean = clean.replace(/Section\s*\d*\s*:\s*/gi, '');
+
+    // 8. Strip all leaked markdown symbols
+    clean = clean.replace(/[#*<>_`]/g, '');
+
+    // 9. Normalize excessive blank lines (max 2 consecutive newlines)
+    clean = clean.replace(/\n{3,}/g, '\n\n');
+
+    // 10. Remove trailing stray whitespace/asterisks
     clean = clean.trim().replace(/[\s\*]+$/, '');
 
-    // 4. Pastikan struktur wajib: Disclaimer Medis di paling atas (hanya jika bukan respon terstruktur baru)
+    // 11. Prepend default disclaimer only if response has no structured headings
     const disclaimer = "This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.";
     const hasCapitalizedHeading = clean.split('\n').some(line => {
         const trimmed = line.trim();
         return trimmed.length > 3 && trimmed === trimmed.toUpperCase() && /^[A-Z\s\d\-\&]+$/.test(trimmed);
     });
-    const hasNewStructure = hasCapitalizedHeading || clean.toUpperCase().includes("CATATAN MEDIS") || clean.toUpperCase().includes("SALAM DAN EMPATI") || clean.toUpperCase().includes("MEDICAL DISCLAIMER") || clean.toUpperCase().includes("GREETINGS AND EMPATHY") || clean.toUpperCase().includes("CONDITION ANALYSIS");
+    const hasNewStructure = hasCapitalizedHeading
+        || clean.toUpperCase().includes("CATATAN MEDIS")
+        || clean.toUpperCase().includes("SALAM DAN EMPATI")
+        || clean.toUpperCase().includes("MEDICAL DISCLAIMER")
+        || clean.toUpperCase().includes("GREETINGS AND EMPATHY")
+        || clean.toUpperCase().includes("CONDITION ANALYSIS");
     if (!hasNewStructure && !clean.startsWith(disclaimer) && !clean.startsWith(`> ${disclaimer}`)) {
         clean = clean.replace(/^This AI analysis is informative.*?\n+/gi, '');
         clean = `> ${disclaimer}\n\n${clean.trim()}`;
