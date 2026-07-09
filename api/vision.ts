@@ -5,47 +5,48 @@ const SYSTEM_INSTRUCTION = `You are the AI vision engine for "HealthPal", a heal
 
 Rules:
 - Always respond in English only, regardless of the user's language.
-- Start every response with this disclaimer on its own line:
+- Start every response with this exact disclaimer on its own line:
   > This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.
 - Be concise (under 30-second read time).
 - Provide safe, evidence-based wellness insights. Never prescribe medications or diagnose.
 - When an image is provided, analyze it and describe relevant health observations (food, injury, medication label, skin condition) with evidence-based insights.
 - For data/metrics/logs requests: respond with raw minified JSON (no markdown code fences).
 - For educational/medical content: respond in clean Markdown with ## headers and **bold** key terms.
-- Never output internal reasoning, thinking steps, scratchpads, or analysis notes.`;
+- Output ONLY the final user-facing message. Do not include any analysis, reasoning, review, drafting, or internal notes.
+
+/no_think`;
+
+const DISCLAIMER = '> This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.';
 
 /**
- * Strip any leaked thinking/reasoning blocks from AI output.
+ * Extract clean user-facing response from AI output.
+ * Finds the disclaimer line and takes everything from there onwards,
+ * discarding any leaked reasoning that appears before it.
  */
-function stripThinking(text: string): string {
+function extractCleanResponse(text: string): string {
   let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
 
-  const leakKeywords = [
-    'Thinking Process', 'Analyze the Request', 'Drafting',
-    'Internal Note', 'Scratchpad', 'Chain of Thought', 'CoT',
-    'System Rules', 'STRICT OUTPUT', 'STRICT LANGUAGE',
-    'Operational Rules', 'Adaptive Output', 'CRITICAL',
-    'EFFICIENCY', 'MEDICAL SAFETY', 'User Profile:',
-    'Conversation History:', 'Wait,',
-  ];
+  const disclaimerPattern = /^>\s*This AI analysis is informative/m;
+  const match = cleaned.match(disclaimerPattern);
 
-  const escapedKeywords = leakKeywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const kwGroup = escapedKeywords.join('|');
+  if (match && match.index !== undefined) {
+    cleaned = cleaned.substring(match.index);
+  } else {
+    cleaned = cleaned
+      .replace(/^(Analyze the Request|Formulate the Response|Review against constraints|Greeting Content|Drafting content|Disclaimer|English only\?|Concise\?|Safe\/|Data\/metrics|No internal)[:\s].*$/gim, '')
+      .replace(/^(N\/A|Yes[.,]|No[.,]).*/gim, '')
+      .replace(/^[-*]\s*(Act as|Give general|ALWAYS include|Focus on|DO NOT|If Hands|Language:).*/gim, '')
+      .replace(/^(User manages|Recent conversation|Persona|Rules):?.*/gim, '')
+      .replace(/^(Acknowledge|Be warm|Use Markdown|Keep it).*/gim, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
 
-  cleaned = cleaned.replace(
-    new RegExp(`\\*\\*(?:${kwGroup})\\*\\*[:\\-]?[\\s\\S]*?(?=\n\\*\\*[A-Z]|\n#{1,4}\\s|\n> |$)`, 'gi'), ''
-  );
-  cleaned = cleaned.replace(
-    new RegExp(`^#{1,4}\\s*(?:${kwGroup})[:\\-]?.*(?:\n(?!#{1,4}\\s|> |\\*\\*[A-Z]).*)*`, 'gim'), ''
-  );
-  cleaned = cleaned.replace(
-    new RegExp(`^(?:${kwGroup})[:\\-].*$`, 'gim'), ''
-  );
-  cleaned = cleaned.replace(/^Step \d+[:\-].*/gim, '');
-  cleaned = cleaned.replace(/^[-*]\s*(Act as PalBuddy|Give general medical|ALWAYS include|Focus on personalization|DO NOT provide|If Hands-Free|Language:).*/gim, '');
-  cleaned = cleaned.replace(/^Guidelines:\s*\n(\s*(\d+\.|-|\*)\s.*\n?)*/gim, '');
+    if (!disclaimerPattern.test(cleaned)) {
+      cleaned = DISCLAIMER + '\n\n' + cleaned;
+    }
+  }
+
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
-
   return cleaned;
 }
 
@@ -117,7 +118,7 @@ export const runVision = async (prompt: string, imageBase64: string, mimeType = 
     throw new Error('Fireworks vision returned an empty response.');
   }
 
-  const text = stripThinking(typeof raw === 'string' ? raw : JSON.stringify(raw));
+  const text = extractCleanResponse(typeof raw === 'string' ? raw : JSON.stringify(raw));
   return text;
 };
 

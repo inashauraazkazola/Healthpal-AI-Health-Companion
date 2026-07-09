@@ -5,76 +5,55 @@ const SYSTEM_INSTRUCTION = `You are PalBuddy, a warm and friendly health assista
 
 Rules:
 - Always respond in English only, regardless of the user's language.
-- Start every response with this disclaimer on its own line:
+- Start every response with this exact disclaimer on its own line:
   > This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.
 - Be concise (under 30-second read time).
 - Provide safe, evidence-based wellness insights. Never prescribe medications or diagnose.
 - For data/metrics/logs requests: respond with raw minified JSON (no markdown code fences).
 - For educational/medical/greeting content: respond in clean Markdown with ## headers and **bold** key terms.
-- Never output internal reasoning, thinking steps, scratchpads, or analysis notes.`;
+- Output ONLY the final user-facing message. Do not include any analysis, reasoning, review, drafting, or internal notes.
+
+/no_think`;
+
+const DISCLAIMER = '> This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.';
 
 /**
- * Strip any leaked thinking/reasoning blocks from AI output.
- * Handles <think> tags, markdown-bold headers, hash headers,
- * and multi-line reasoning blocks that Qwen3 sometimes emits.
+ * Extract clean user-facing response from AI output.
+ *
+ * Strategy: Qwen3 tends to leak its reasoning before the actual answer.
+ * The actual answer always starts with the disclaimer blockquote line.
+ * So we find that line and take everything from there onwards.
+ * If the disclaimer is missing entirely, we strip known junk and prepend it.
  */
-function stripThinking(text: string): string {
+function extractCleanResponse(text: string): string {
   // 1. Remove <think>...</think> blocks (Qwen3 thinking tags)
   let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
 
-  // 2. List of keywords that indicate leaked internal reasoning
-  const leakKeywords = [
-    'Thinking Process',
-    'Analyze the Request',
-    'Drafting',
-    'Internal Note',
-    'Scratchpad',
-    'Chain of Thought',
-    'CoT',
-    'System Rules',
-    'STRICT OUTPUT',
-    'STRICT LANGUAGE',
-    'Operational Rules',
-    'Adaptive Output',
-    'CRITICAL',
-    'EFFICIENCY',
-    'MEDICAL SAFETY',
-    'User Profile:',
-    'Conversation History:',
-    'Wait,',
-  ];
+  // 2. Try to find the disclaimer line and take everything from there
+  const disclaimerPattern = /^>\s*This AI analysis is informative/m;
+  const match = cleaned.match(disclaimerPattern);
 
-  const escapedKeywords = leakKeywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const kwGroup = escapedKeywords.join('|');
+  if (match && match.index !== undefined) {
+    // Take everything from the disclaimer onwards — discard ALL preceding text
+    cleaned = cleaned.substring(match.index);
+  } else {
+    // Disclaimer not found — aggressively strip all reasoning junk
+    cleaned = cleaned
+      .replace(/^(Analyze the Request|Formulate the Response|Review against constraints|Greeting Content|Drafting content|Disclaimer|English only\?|Concise\?|Safe\/|Data\/metrics|No internal)[:\s].*$/gim, '')
+      .replace(/^(N\/A|Yes[.,]|No[.,]).*/gim, '')
+      .replace(/^[-*]\s*(Act as|Give general|ALWAYS include|Focus on|DO NOT|If Hands|Language:).*/gim, '')
+      .replace(/^(User manages|Recent conversation|Persona|Rules):?.*/gim, '')
+      .replace(/^(Acknowledge|Be warm|Use Markdown|Keep it).*/gim, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
 
-  // 3. Remove bold-markdown headers like **Thinking Process:** ... (up to next bold header or end)
-  cleaned = cleaned.replace(
-    new RegExp(`\\*\\*(?:${kwGroup})\\*\\*[:\\-]?[\\s\\S]*?(?=\n\\*\\*[A-Z]|\n#{1,4}\\s|\n> |$)`, 'gi'),
-    ''
-  );
+    // Prepend disclaimer if it's missing
+    if (!disclaimerPattern.test(cleaned)) {
+      cleaned = DISCLAIMER + '\n\n' + cleaned;
+    }
+  }
 
-  // 4. Remove hash-prefixed headers like ### Thinking Process: ... (up to next header or end)
-  cleaned = cleaned.replace(
-    new RegExp(`^#{1,4}\\s*(?:${kwGroup})[:\\-]?.*(?:\n(?!#{1,4}\\s|> |\\*\\*[A-Z]).*)*`, 'gim'),
-    ''
-  );
-
-  // 5. Remove plain-text lines that start with a leak keyword followed by colon
-  cleaned = cleaned.replace(
-    new RegExp(`^(?:${kwGroup})[:\\-].*$`, 'gim'),
-    ''
-  );
-
-  // 6. Remove numbered reasoning steps like "Step 1:", "1." at the start followed by reasoning text
-  cleaned = cleaned.replace(/^Step \d+[:\-].*/gim, '');
-
-  // 7. Remove lines that look like meta-instructions leaked from the prompt
-  cleaned = cleaned.replace(/^[-*]\s*(Act as PalBuddy|Give general medical|ALWAYS include|Focus on personalization|DO NOT provide|If Hands-Free|Language:).*/gim, '');
-
-  // 8. Remove "Guidelines:" section blocks
-  cleaned = cleaned.replace(/^Guidelines:\s*\n(\s*(\d+\.|-|\*)\s.*\n?)*/gim, '');
-
-  // 9. Collapse multiple blank lines into one
+  // 3. Final cleanup: collapse blank lines
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
 
   return cleaned;
@@ -128,7 +107,7 @@ export const runChat = async (prompt: string) => {
     throw new Error('Fireworks returned an empty response.');
   }
 
-  const text = stripThinking(typeof raw === 'string' ? raw : JSON.stringify(raw));
+  const text = extractCleanResponse(typeof raw === 'string' ? raw : JSON.stringify(raw));
 
   return text;
 };

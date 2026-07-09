@@ -53,6 +53,7 @@ export const AIChat = ({ onBack }: { onBack: () => void }) => {
         handsFree ? 'Hands-free mode is on — keep it short and easy to listen to.' : '',
         history ? `Recent conversation:\n${history}` : '',
         `User says: "${userMsg}"`,
+        '/no_think',
       ].filter(Boolean).join('\n');
 
       const text = await proxyChat(prompt);
