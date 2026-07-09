@@ -10,12 +10,13 @@ import { VoiceInputButton, speakText } from '../components/VoiceTools';
 function cutLeakedReasoning(text: string): string {
   if (typeof text !== 'string' || !text) return text;
   let cleaned = text;
-  // Potong SEMUA teks mulai dari "* *" (pola universal teks batin AI)
-  if (cleaned.includes('* *')) {
-    cleaned = cleaned.split('* *')[0];
+  // Potong SEMUA teks mulai dari "* *" / "**" / "Wait, check constraints" menggunakan regex
+  const regexCut = /\*\s*\*|\*\*|Wait,\s*check\s*constraints|check\s*constraints/i;
+  if (regexCut.test(cleaned)) {
+    cleaned = cleaned.split(regexCut)[0];
   }
   // Keyword cadangan
-  const trashMarkers = ['Wait, check constraints', '* Okay', '* Output', '* Note:', '*Note:'];
+  const trashMarkers = ['* Okay', '* Output', '* Note:', '*Note:'];
   for (const marker of trashMarkers) {
     const idx = cleaned.indexOf(marker);
     if (idx !== -1) cleaned = cleaned.substring(0, idx);
@@ -113,10 +114,7 @@ export const AIChat = ({ onBack }: { onBack: () => void }) => {
 
       let text = await proxyChat(prompt);
       // ── LAPIS KEDUA: Potong kebocoran teks batin sebelum masuk ke state ──
-      if (typeof text === 'string' && text.includes('* *')) {
-        text = text.split('* *')[0];
-      }
-      text = text.trim().replace(/[\s\*]+$/, '');
+      text = cutLeakedReasoning(text);
       setMessages(prev => [...prev, { role: 'ai', content: text }]);
       
       // Auto speak based on voiceEnabled, handsFree or length

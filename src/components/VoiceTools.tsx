@@ -35,7 +35,20 @@ export const speakText = (text: string, language: string = 'en-US', onStateChang
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
   
-  const cleanTextForSpeech = text.replace(/[\*#_>]/g, '').trim();
+  let cleaned = text;
+  // Potong SEMUA teks mulai dari "* *" / "**" / "Wait, check constraints" menggunakan regex
+  const regexCut = /\*\s*\*|\*\*|Wait,\s*check\s*constraints|check\s*constraints/i;
+  if (regexCut.test(cleaned)) {
+    cleaned = cleaned.split(regexCut)[0];
+  }
+  // Keyword cadangan
+  const trash = ['* Okay', '* Output', '* Note:', '*Note:'];
+  for (const t of trash) {
+    const i = cleaned.indexOf(t);
+    if (i !== -1) cleaned = cleaned.substring(0, i);
+  }
+
+  const cleanTextForSpeech = cleaned.replace(/[\*#_>]/g, '').trim();
   const chunks = cleanTextForSpeech.match(/.{1,200}(\s|$)/g) || [cleanTextForSpeech];
   
   chunks.forEach((chunk, index) => {

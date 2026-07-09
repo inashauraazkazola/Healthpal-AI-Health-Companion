@@ -24,8 +24,13 @@ import {
 function cutLeakedReasoning(text: string): string {
   if (typeof text !== 'string' || !text) return text;
   let cleaned = text;
-  if (cleaned.includes('* *')) cleaned = cleaned.split('* *')[0];
-  const trash = ['Wait, check constraints', '* Okay', '* Output', '* Note:', '*Note:'];
+  // Potong SEMUA teks mulai dari "* *" / "**" / "Wait, check constraints" menggunakan regex
+  const regexCut = /\*\s*\*|\*\*|Wait,\s*check\s*constraints|check\s*constraints/i;
+  if (regexCut.test(cleaned)) {
+    cleaned = cleaned.split(regexCut)[0];
+  }
+  // Keyword cadangan
+  const trash = ['* Okay', '* Output', '* Note:', '*Note:'];
   for (const t of trash) {
     const i = cleaned.indexOf(t);
     if (i !== -1) cleaned = cleaned.substring(0, i);

@@ -18,15 +18,14 @@ function cleanAiResponse(text: string): string {
 
   let cleaned = text;
 
-  // ── STRATEGI 1: Potong di "* *" (pola UNIVERSAL teks batin AI) ──────────
-  // Setiap kali AI bocor dengan tanda "* *Apa saja" → potong semuanya.
-  if (cleaned.includes('* *')) {
-    cleaned = cleaned.split('* *')[0];
+  // ── STRATEGI 1: Potong di "* *" / "**" / "Wait, check constraints" menggunakan regex ──
+  const regexCut = /\*\s*\*|\*\*|Wait,\s*check\s*constraints|check\s*constraints/i;
+  if (regexCut.test(cleaned)) {
+    cleaned = cleaned.split(regexCut)[0];
   }
 
   // ── STRATEGI 2: Keyword spesifik sebagai cadangan ───────────────────────
   const trashMarkers = [
-    'Wait, check constraints',
     '* Okay',
     '* Output',
     '* Note:',
