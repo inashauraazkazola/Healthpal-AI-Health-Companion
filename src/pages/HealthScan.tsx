@@ -10,12 +10,9 @@ import { motion, AnimatePresence } from 'motion/react';
 
 function formatMessageToHtml(text: string): string {
   if (!text) return '';
-  let cleanText = text;
-  // Cut leaked AI reasoning at known markers
-  const trashMarkers = ['* *Wait', '* *Okay', '* *Ok', '* Okay', '* Output', 'Wait, check constraints'];
-  for (const marker of trashMarkers) {
-    const idx = cleanText.indexOf(marker);
-    if (idx !== -1) cleanText = cleanText.substring(0, idx);
+  let cleanText: string = text;
+  if (cleanText.includes("* *")) {
+    cleanText = cleanText.split("* *")[0];
   }
   cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
   let html = cleanText

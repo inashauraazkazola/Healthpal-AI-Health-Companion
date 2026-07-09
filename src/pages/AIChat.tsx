@@ -180,48 +180,57 @@ export const AIChat = ({ onBack }: { onBack: () => void }) => {
            />
         </div>
         <AnimatePresence>
-          {messages.map((msg, i) => (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              key={i} 
-              className={cn(
-                "flex items-start gap-3",
-                msg.role === 'user' ? "flex-row-reverse" : "flex-row"
-              )}
-            >
-              <div className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-                msg.role === 'user' ? "bg-slate-200 dark:bg-slate-800" : "bg-emerald-500"
-              )}>
-                {msg.role === 'user' ? <User className="w-4 h-4 text-slate-600 dark:text-slate-400" /> : <Bot className="w-4 h-4 text-white" />}
-              </div>
-              <div className={cn(
-                "max-w-[85%] md:max-w-[70%] p-4 rounded-3xl text-sm leading-relaxed text-left relative group",
-                msg.role === 'user' 
-                  ? "bg-slate-900 dark:bg-emerald-600 text-white rounded-tr-none shadow-lg shadow-emerald-500/10 dark:shadow-none" 
-                  : "bg-white dark:bg-slate-900/80 dark:backdrop-blur-md text-slate-800 dark:text-slate-100 rounded-tl-none shadow-sm border border-slate-100 dark:border-slate-800"
-              )}>
-                {msg.role === 'ai' && (
-                  <button 
-                    onClick={() => speakText(msg.content, lang, setIsSpeaking)}
-                    className="absolute -right-10 top-1/2 -translate-y-1/2 p-2 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Volume2 className="w-4 h-4" />
-                  </button>
+          {messages.map((msg, i) => {
+            let cleanText: string = msg.content;
+            if (msg.role === 'ai') {
+              if (cleanText.includes("* *")) {
+                cleanText = cleanText.split("* *")[0];
+              }
+              cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
+            }
+            return (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                key={i} 
+                className={cn(
+                  "flex items-start gap-3",
+                  msg.role === 'user' ? "flex-row-reverse" : "flex-row"
                 )}
-                {msg.role === 'ai' && i > 0 && (
-                  <div className="flex items-center gap-2 mb-3 pb-3 border-b border-emerald-50 dark:border-white/5 text-[10px] text-rose-500 font-bold uppercase tracking-widest">
-                    <ShieldAlert className="w-3 h-3" /> Medical Alert
-                  </div>
-                )}
-                <div 
-                  className="chat-content text-sm leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: formatMessageToHtml(msg.content) }}
-                />
-              </div>
-            </motion.div>
-          ))}
+              >
+                <div className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+                  msg.role === 'user' ? "bg-slate-200 dark:bg-slate-800" : "bg-emerald-500"
+                )}>
+                  {msg.role === 'user' ? <User className="w-4 h-4 text-slate-600 dark:text-slate-400" /> : <Bot className="w-4 h-4 text-white" />}
+                </div>
+                <div className={cn(
+                  "max-w-[85%] md:max-w-[70%] p-4 rounded-3xl text-sm leading-relaxed text-left relative group",
+                  msg.role === 'user' 
+                    ? "bg-slate-900 dark:bg-emerald-600 text-white rounded-tr-none shadow-lg shadow-emerald-500/10 dark:shadow-none" 
+                    : "bg-white dark:bg-slate-900/80 dark:backdrop-blur-md text-slate-800 dark:text-slate-100 rounded-tl-none shadow-sm border border-slate-100 dark:border-slate-800"
+                )}>
+                  {msg.role === 'ai' && (
+                    <button 
+                      onClick={() => speakText(cleanText, lang, setIsSpeaking)}
+                      className="absolute -right-10 top-1/2 -translate-y-1/2 p-2 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Volume2 className="w-4 h-4" />
+                    </button>
+                  )}
+                  {msg.role === 'ai' && i > 0 && (
+                    <div className="flex items-center gap-2 mb-3 pb-3 border-b border-emerald-50 dark:border-white/5 text-[10px] text-rose-500 font-bold uppercase tracking-widest">
+                      <ShieldAlert className="w-3 h-3" /> Medical Alert
+                    </div>
+                  )}
+                  <div 
+                    className="chat-content text-sm leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: formatMessageToHtml(cleanText) }}
+                  />
+                </div>
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
         {loading && (
           <div className="flex items-center gap-2 text-emerald-500 text-xs italic">

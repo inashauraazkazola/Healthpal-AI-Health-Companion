@@ -122,24 +122,31 @@ export const PalBuddy = ({ message, isSpeaking, language = 'en-US', onSpeakingCh
         </svg>
       </motion.div>
       
-      {message && (
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.8, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          className={cn(
-            "mt-2 bg-white dark:bg-slate-800/80 dark:backdrop-blur-md text-slate-700 dark:text-slate-200 p-4 rounded-2xl rounded-tl-none shadow-xl border border-emerald-50 dark:border-emerald-900/30 max-w-xs text-sm font-medium z-10 relative group-hover:bg-white dark:group-hover:bg-slate-800",
-            isSpeaking && "ring-2 ring-slate-400 shadow-slate-400/20"
-          )}
-        >
-          {message}
-          <button 
-            onClick={() => speakText(message, language, onSpeakingChange)}
-            className="absolute -right-8 top-1/2 -translate-y-1/2 p-2 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity"
+      {message && (() => {
+        let cleanText = message || '';
+        if (cleanText.includes("* *")) {
+          cleanText = cleanText.split("* *")[0];
+        }
+        cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
+        return (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className={cn(
+              "mt-2 bg-white dark:bg-slate-800/80 dark:backdrop-blur-md text-slate-700 dark:text-slate-200 p-4 rounded-2xl rounded-tl-none shadow-xl border border-emerald-50 dark:border-emerald-900/30 max-w-xs text-sm font-medium z-10 relative group-hover:bg-white dark:group-hover:bg-slate-800",
+              isSpeaking && "ring-2 ring-slate-400 shadow-slate-400/20"
+            )}
           >
-            <Volume2 className="w-4 h-4" />
-          </button>
-        </motion.div>
-      )}
+            {cleanText}
+            <button 
+              onClick={() => speakText(cleanText, language, onSpeakingChange)}
+              className="absolute -right-8 top-1/2 -translate-y-1/2 p-2 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <Volume2 className="w-4 h-4" />
+            </button>
+          </motion.div>
+        );
+      })()}
       <span className="mt-2 font-black text-emerald-600 dark:text-emerald-400 font-mono text-[10px] uppercase tracking-widest bg-emerald-50 dark:bg-emerald-950/30 px-3 py-1 rounded-full border border-emerald-100 dark:border-emerald-900/20">
         PalBuddy V2.5
       </span>

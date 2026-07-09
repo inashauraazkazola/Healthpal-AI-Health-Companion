@@ -69,10 +69,16 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
   }, user?.id);
 
   const displayedAiInsights = useMemo(() => {
-    if (healthData.aiInsights === 'Selamat datang! Tekan salah satu menu pelacak untuk memulai hari Anda.') {
-      return "Welcome! Press any tracker menu to start your day.";
+    let rawText = healthData.aiInsights;
+    if (rawText === 'Selamat datang! Tekan salah satu menu pelacak untuk memulai hari Anda.') {
+      rawText = "Welcome! Press any tracker menu to start your day.";
     }
-    return healthData.aiInsights;
+    let cleanText: string = rawText || '';
+    if (cleanText.includes("* *")) {
+      cleanText = cleanText.split("* *")[0];
+    }
+    cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
+    return cleanText;
   }, [healthData.aiInsights]);
 
   const [symptomSeverity, setSymptomSeverity] = useState(1);
@@ -92,7 +98,12 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
 
   const speakText = (text: string) => {
     const lang = 'en-US';
-    speakTextShared(text, lang, setIsPalSpeaking);
+    let cleanText: string = text;
+    if (cleanText.includes("* *")) {
+      cleanText = cleanText.split("* *")[0];
+    }
+    cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
+    speakTextShared(cleanText, lang, setIsPalSpeaking);
   };
 
   // Auto-speak daily insights if enabled
@@ -2907,7 +2918,14 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
                                  {healthData.hydrationLogs?.find(l => l.date === getLocalDate())?.analysis && (
                                    <div className="p-4 bg-white/60 rounded-2xl border border-blue-100 text-[10px] text-blue-800 italic leading-relaxed relative pr-8">
                                      <Zap className="w-2.5 h-2.5 inline mr-1 text-blue-500" />
-                                     {healthData.hydrationLogs.find(l => l.date === getLocalDate())?.analysis}
+                                     {(() => {
+                                       let cleanText = healthData.hydrationLogs.find(l => l.date === getLocalDate())?.analysis || '';
+                                       if (cleanText.includes("* *")) {
+                                         cleanText = cleanText.split("* *")[0];
+                                       }
+                                       cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
+                                       return cleanText;
+                                     })()}
                                      <button 
                                        onClick={() => speakText(healthData.hydrationLogs!.find(l => l.date === getLocalDate())!.analysis!)} 
                                        className="absolute right-2 top-2 text-blue-500 opacity-60 hover:opacity-100"
@@ -2990,7 +3008,14 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
                                             <div className="flex items-start gap-2">
                                               <div className="flex-1 text-[11px] text-emerald-600 leading-relaxed italic pl-1">
                                                 <Zap className="w-2.5 h-2.5 inline mr-1 mb-0.5 animate-pulse" />
-                                                {meals[type].feedback}
+                                                {(() => {
+                                                  let cleanText = meals[type].feedback || '';
+                                                  if (cleanText.includes("* *")) {
+                                                    cleanText = cleanText.split("* *")[0];
+                                                  }
+                                                  cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
+                                                  return cleanText;
+                                                })()}
                                               </div>
                                               <button onClick={() => speakText(meals[type].feedback!)} className="p-1 text-emerald-500 hover:text-emerald-600">
                                                 <Volume2 className="w-3 h-3" />
@@ -3000,7 +3025,14 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
                                           {healthData.mealLogs?.find(l => l.date === getLocalDate())?.meals[type]?.analysis && (
                                             <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800 text-[10px] text-blue-800 dark:text-blue-300 leading-relaxed italic whitespace-pre-wrap relative pr-8">
                                               <Zap className="w-2.5 h-2.5 inline mr-1 text-blue-500" />
-                                              {healthData.mealLogs.find(l => l.date === getLocalDate())?.meals[type]?.analysis}
+                                              {(() => {
+                                                let cleanText = healthData.mealLogs.find(l => l.date === getLocalDate())?.meals[type]?.analysis || '';
+                                                if (cleanText.includes("* *")) {
+                                                  cleanText = cleanText.split("* *")[0];
+                                                }
+                                                cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
+                                                return cleanText;
+                                              })()}
                                               <button 
                                                 onClick={() => speakText(healthData.mealLogs!.find(l => l.date === getLocalDate())!.meals[type]!.analysis!)} 
                                                 className="absolute right-2 top-2 text-blue-500 opacity-60 hover:opacity-100"
@@ -3389,7 +3421,6 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
                                            </button>
                                          </div>
                                        </div>
-                                       
                                        {med.analysis && (
                                          <div className="p-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-2xl relative overflow-hidden">
                                            <div className="flex items-center gap-2 mb-2">
@@ -3397,7 +3428,14 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
                                              <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">AI Medical Insights</span>
                                            </div>
                                            <div className="text-[11px] text-slate-600 dark:text-blue-200 leading-relaxed whitespace-pre-wrap italic">
-                                             {med.analysis}
+                                             {(() => {
+                                               let cleanText = med.analysis || '';
+                                               if (cleanText.includes("* *")) {
+                                                 cleanText = cleanText.split("* *")[0];
+                                               }
+                                               cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
+                                               return cleanText;
+                                             })()}
                                            </div>
                                          </div>
                                        )}
@@ -4368,7 +4406,14 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
                                 </div>
                                 <div className="relative group/feedback pr-10">
                                    <div className="text-[13px] text-emerald-900 leading-relaxed space-y-3 whitespace-pre-line text-left">
-                                      {symptomAiFeedback}
+                                      {(() => {
+                                        let cleanText = symptomAiFeedback || '';
+                                        if (cleanText.includes("* *")) {
+                                          cleanText = cleanText.split("* *")[0];
+                                        }
+                                        cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
+                                        return cleanText;
+                                      })()}
                                    </div>
                                    <button 
                                      onClick={() => speakText(symptomAiFeedback)}
