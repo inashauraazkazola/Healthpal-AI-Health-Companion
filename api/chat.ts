@@ -43,10 +43,25 @@ function extractCleanResponse(text: string): string {
     rawText = cleanLines.join('\n').trim();
   }
 
-  // 3. Rakit ulang secara paksa: Selipkan satu buah Disclaimer Wajib di baris paling atas
-  rawText = `This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.\n\n${rawText.trim()}`;
+  // 3. Bersihkan kebocoran di bagian ekor/bawah teks
+  // Jika mendeteksi tanda "* *Wait" atau "* *Okey" atau "* Output", potong dan buang semua teks di bawahnya
+  const trashKeywords = ["* *Wait", "* *Okay", "* *Ok", "* Output", "##` headers"];
+  for (const keyword of trashKeywords) {
+    const trashIndex = rawText.indexOf(keyword);
+    if (trashIndex !== -1) {
+      rawText = rawText.substring(0, trashIndex); // Ambil hanya teks SEBELUM kata sampah tersebut
+    }
+  }
 
-  // 4. Clean trailing review check blocks or code fence leftovers
+  // 4. Pastikan teks berformat rapi dan ditutup dengan benar
+  rawText = rawText.trim();
+
+  // 5. Pastikan Disclaimer Medis tetap berada di baris paling atas secara konsisten
+  if (!rawText.startsWith("This AI analysis is informative")) {
+    rawText = `This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.\n\n${rawText}`;
+  }
+
+  // 6. Clean trailing review check blocks or code fence leftovers
   rawText = rawText
     .replace(/\n*\s*Review against constraints:[\s\S]*/i, '')
     .replace(/\*\*+$/, '')
