@@ -54,8 +54,12 @@ export const runVision = async (prompt: string, imageBase64: string, mimeType = 
     },
   ];
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+
   const response = await fetch(FIREWORKS_URL, {
     method: 'POST',
+    signal: controller.signal,
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
@@ -63,10 +67,12 @@ export const runVision = async (prompt: string, imageBase64: string, mimeType = 
     body: JSON.stringify({
       model: VISION_MODEL,
       messages,
-      temperature: 0.7,
-      max_tokens: 800,
+      temperature: 0.6,
+      max_tokens: 600,
     }),
   });
+
+  clearTimeout(timeout);
 
   const data = await response.json().catch(() => ({}));
 

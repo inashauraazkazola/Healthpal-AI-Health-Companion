@@ -18,7 +18,7 @@ Adaptive Output Formatting Rules:
 - Never mix conversational filler prose outside of the requested JSON or Markdown structures.`;
 
 /**
- * Text-only chat via llama-v3-8b-instruct.
+ * Text-only chat via qwen3p7-plus.
  * For image analysis, use /api/vision instead.
  */
 export const runChat = async (prompt: string) => {
@@ -33,8 +33,12 @@ export const runChat = async (prompt: string) => {
     { role: 'user', content: prompt },
   ];
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+
   const response = await fetch(FIREWORKS_URL, {
     method: 'POST',
+    signal: controller.signal,
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
@@ -42,10 +46,12 @@ export const runChat = async (prompt: string) => {
     body: JSON.stringify({
       model: CHAT_MODEL,
       messages,
-      temperature: 0.7,
-      max_tokens: 700,
+      temperature: 0.6,
+      max_tokens: 500,
     }),
   });
+
+  clearTimeout(timeout);
 
   const data = await response.json().catch(() => ({}));
 
