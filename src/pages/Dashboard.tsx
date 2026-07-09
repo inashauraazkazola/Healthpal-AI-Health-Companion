@@ -50,6 +50,42 @@ const cleanMessageText = (rawText: string): string => {
 // Alias lokal — semua panggilan tetap bisa pakai nama lama ini
 const cutLeakedReasoning = cleanMessageText;
 
+// Helper: konversi markdown sederhana ke HTML untuk AI Insights
+const formatInsightsHtml = (text: string): string => {
+  if (!text) return '';
+  let clean = cutLeakedReasoning(text);
+
+  // Escape HTML
+  let html = clean
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Blockquotes (> text)
+  html = html.replace(/^&gt;\s*(.*)$/gm, '<blockquote>$1</blockquote>');
+
+  // Disclaimer standalone sebagai blockquote
+  html = html.replace(/^(This AI analysis is informative[^\n]*)$/gim, '<blockquote>$1</blockquote>');
+
+  // Bold **text**
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+  // Headings ## dan ###
+  html = html.replace(/^##\s*(.*)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^###\s*(.*)$/gm, '<h3>$1</h3>');
+
+  // Hapus sisa bintang/hash yang belum diproses
+  html = html.replace(/\*/g, '').replace(/#/g, '');
+
+  // Paragraf
+  const blocks = html.split(/\n\n+/);
+  return blocks.map(b => {
+    const t = b.trim();
+    if (t.startsWith('<blockquote>') || t.startsWith('<h2>') || t.startsWith('<h3>')) return t;
+    return `<p>${t.replace(/\n/g, '<br/>')}</p>`;
+  }).join('');
+};
+
 export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) => {
   const { user, logout, updateUser } = useAuth();
 
@@ -1880,10 +1916,11 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
                    <h3 className="font-bold text-slate-800 dark:text-white">AI Health Insights</h3>
                  </div>
               </div>
-              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100 dark:border-emerald-900">
-                <p className="text-sm text-emerald-800 dark:text-emerald-400 leading-relaxed italic">
-                  {displayedAiInsights || "Welcome! Log some data daily for AI analysis."}
-                </p>
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100 dark:border-emerald-900 prose prose-sm prose-emerald max-w-none dark:prose-invert">
+                {displayedAiInsights
+                  ? <div className="text-sm text-emerald-800 dark:text-emerald-400 leading-relaxed insights-content" dangerouslySetInnerHTML={{ __html: formatInsightsHtml(displayedAiInsights) }} />
+                  : <p className="text-sm text-emerald-800 dark:text-emerald-400 leading-relaxed italic">Welcome! Log some data daily for AI analysis.</p>
+                }
               </div>
            </motion.section>
         </div>
