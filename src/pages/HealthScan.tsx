@@ -88,7 +88,7 @@ const cleanMessageText = (rawText: string): string => {
 
     // 4. Pastikan struktur wajib: Disclaimer Medis di paling atas (hanya jika bukan respon terstruktur baru)
     const disclaimer = "This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.";
-    const hasNewStructure = clean.toUpperCase().includes("CATATAN MEDIS") || clean.toUpperCase().includes("SALAM DAN EMPATI");
+    const hasNewStructure = clean.toUpperCase().includes("CATATAN MEDIS") || clean.toUpperCase().includes("SALAM DAN EMPATI") || clean.toUpperCase().includes("MEDICAL DISCLAIMER") || clean.toUpperCase().includes("GREETINGS AND EMPATHY") || clean.toUpperCase().includes("CONDITION ANALYSIS");
     if (!hasNewStructure && !clean.startsWith(disclaimer) && !clean.startsWith(`> ${disclaimer}`)) {
         clean = clean.replace(/^This AI analysis is informative.*?\n+/gi, '');
         clean = `> ${disclaimer}\n\n${clean.trim()}`;
