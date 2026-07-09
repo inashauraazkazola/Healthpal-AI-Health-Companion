@@ -19,80 +19,48 @@ const DISCLAIMER = '> This AI analysis is informative and does not replace profe
 
 /**
  * Extract ONLY the clean user-facing response from Qwen3 output.
- *
- * Qwen3 frequently leaks its internal reasoning in this structure:
- *   > Disclaimer...
- *   Thinking Process:
- *   Analyze the Request: ...
- *   Formulate the Response:
- *   Drafting:
- *   ## Actual Clean Content   <-- THIS is what we want
- *   Review against constraints: ...  <-- junk again
- *
- * Strategy:
- *   1. If "Drafting" marker exists → extract content between it and "Review against"
- *   2. If no Drafting but reasoning headers exist → find the last ## header block
- *   3. Always strip trailing "Review against constraints:" blocks
- *   4. Always ensure disclaimer is at the top, exactly once
+ * Since Qwen3 often leaks its reasoning/drafting steps alongside the disclaimer,
+ * we locate the last occurrence of the disclaimer and grab only the clean content after it.
  */
 function extractCleanResponse(text: string): string {
-  // Step 0: Remove <think>...</think> blocks
+  // Step 1: Remove Qwen thinking tags
   let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
 
-  // Step 1: Detect if reasoning leaked
-  const hasThinkingLeak = /Thinking Process:|Analyze the Request:|Formulate the Response:|Review against constraints:/i.test(cleaned);
+  const disclaimerPhrase = "This AI analysis is informative and does not replace professional medical consultation";
+  
+  // Find the last index of the disclaimer phrase (case-insensitive)
+  const lowerText = cleaned.toLowerCase();
+  const lastIdx = lowerText.lastIndexOf(disclaimerPhrase.toLowerCase());
 
-  if (hasThinkingLeak) {
-    // Strategy A: Extract from "Drafting" section (most reliable)
-    const draftMatch = cleaned.match(/Drafting(?:\s+content)?[:\s]*\n([\s\S]*?)(?=\n\s*Review against constraints:|\n\s*Review against|\n\s*Constraints check:)/i);
-
-    if (draftMatch && draftMatch[1]?.trim()) {
-      cleaned = draftMatch[1].trim();
-    } else {
-      // Strategy B: "Drafting" exists but no "Review" after it — take everything after Drafting
-      const draftFallback = cleaned.match(/Drafting(?:\s+content)?[:\s]*\n([\s\S]+)$/i);
-      if (draftFallback && draftFallback[1]?.trim()) {
-        cleaned = draftFallback[1].trim();
-      } else {
-        // Strategy C: No Drafting marker — try to find the actual content
-        // by looking for the last markdown ## header block
-        const lines = cleaned.split('\n');
-        let lastHeaderIdx = -1;
-        for (let i = lines.length - 1; i >= 0; i--) {
-          if (/^#{1,3}\s+\S/.test(lines[i])) {
-            lastHeaderIdx = i;
-            break;
-          }
-        }
-        if (lastHeaderIdx !== -1) {
-          cleaned = lines.slice(lastHeaderIdx).join('\n');
-        }
-      }
+  if (lastIdx !== -1) {
+    // Find where the disclaimer line starts (go back to the start of the line or include > if present)
+    let startIdx = lastIdx;
+    while (startIdx > 0 && cleaned[startIdx - 1] !== '\n') {
+      startIdx--;
     }
+    // Slice from the start of that disclaimer line to the end
+    cleaned = cleaned.substring(startIdx);
   }
 
-  // Step 2: Remove any trailing "Review against constraints:" block and everything after
-  cleaned = cleaned.replace(/\n*\s*Review against constraints:[\s\S]*/i, '');
+  // Remove the disclaimer itself from this clean content slice so we can format it consistently
+  const disclaimerRegex = /^(?:>\s*)?This AI analysis is informative and does not replace professional medical consultation\.?\s*(?:Please consult a licensed medical professional\.?)?/mi;
+  cleaned = cleaned.replace(disclaimerRegex, '').trim();
 
-  // Step 3: Remove any remaining reasoning lines that might have survived
+  // Clean up headers that might follow the disclaimer
   cleaned = cleaned
-    .replace(/^(Thinking Process|Analyze the Request|Formulate the Response|Greeting Content|Greeting\/Content|Disclaimer)[:\s].*$/gim, '')
-    .replace(/^(English only\?|Concise\?|Safe\/evidence|Data\/metrics|No internal|N\/A|Yes[.,]|No[.,]).*/gim, '')
-    .replace(/^(User manages|Recent conversation|Persona|Rules)[:\s].*$/gim, '')
-    .replace(/^(Acknowledge|Be warm|Use Markdown|Keep it|Wait,).*/gim, '')
-    .replace(/^[-*]\s*(Act as|Give general|ALWAYS include|Focus on|DO NOT|If Hands|Language:).*/gim, '');
+    .replace(/^(Greeting\/Wellness insight|Greeting\/Content|Greeting|Wellness insight|Drafting|Draft the Content|Content)[:\s]*/i, '')
+    .trim();
 
-  // Step 4: Collapse blank lines
-  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
+  // Remove trailing junk
+  cleaned = cleaned
+    .replace(/\n*\s*Review against constraints:[\s\S]*/i, '')
+    .replace(/\*\*+$/, '') // remove trailing markdown asterisks
+    .trim();
 
-  // Step 5: Ensure exactly one disclaimer at the top
-  // First remove ALL disclaimer lines from the text
-  cleaned = cleaned.replace(/^>\s*This AI analysis is informative[^\n]*\n*/gm, '').trim();
-
-  // Then prepend exactly one disclaimer
+  // Prepend the standard blockquote disclaimer
   cleaned = DISCLAIMER + '\n\n' + cleaned;
 
-  // Final cleanup
+  // Collapse multiple blank lines
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
 
   return cleaned;
