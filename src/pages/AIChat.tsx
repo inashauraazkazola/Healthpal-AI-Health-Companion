@@ -1,33 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../hooks/usePersistence';
-import { proxyChat, AI_DISCLAIMER } from '../lib/ai';
+import { proxyChat, AI_DISCLAIMER, cleanMessageText } from '../lib/ai';
 import { PalBuddy } from '../components/PalBuddy';
 import { Send, ArrowLeft, Bot, User, ShieldAlert, Volume2, Mic, MicOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { VoiceInputButton, speakText } from '../components/VoiceTools';
 
-function cutLeakedReasoning(text: string): string {
-  if (typeof text !== 'string' || !text) return text;
-  let cleaned = text;
-  // Potong HANYA di "* *" (bintang-spasi-bintang) — marker kebocoran AI
-  // JANGAN potong di "**" karena itu markdown bold valid
-  if (cleaned.includes('* *')) {
-    cleaned = cleaned.split('* *')[0];
-  }
-  // Potong juga jika ada 'Wait, check constraints'
-  const constraintIdx = cleaned.search(/Wait,?\s*check\s*constraints|check\s*constraints/i);
-  if (constraintIdx !== -1) {
-    cleaned = cleaned.substring(0, constraintIdx);
-  }
-  // Keyword cadangan
-  const trashMarkers = ['* Okay', '* Output', '* Note:', '*Note:'];
-  for (const marker of trashMarkers) {
-    const idx = cleaned.indexOf(marker);
-    if (idx !== -1) cleaned = cleaned.substring(0, idx);
-  }
-  return cleaned.trim().replace(/[\s\*]+$/, '');
-}
+// Alias lokal — menggunakan cleanMessageText terpusat dari lib/ai
+const cutLeakedReasoning = cleanMessageText;
+
 
 function formatMessageToHtml(text: string): string {
   if (!text) return '';

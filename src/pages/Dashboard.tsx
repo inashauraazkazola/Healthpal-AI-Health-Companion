@@ -13,35 +13,15 @@ import { cn } from '../lib/utils';
 import { jsPDF } from 'jspdf';
 import { motion, AnimatePresence, Variants } from 'motion/react';
 import { BottomNav, TabType } from '../components/BottomNav';
-import { AI_DISCLAIMER, proxyChat } from '../lib/ai';
+import { AI_DISCLAIMER, proxyChat, cleanMessageText } from '../lib/ai';
 import { speakText as speakTextShared, useSpeechRecognition, VoiceInputButton as VoiceInputButtonShared } from '../components/VoiceTools';
 import { HealthData } from '../types';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend, Brush, LineChart, Line 
 } from 'recharts';
 
-// ── Helper: potong teks batin AI bocor ────────────────────────────────────────
-function cutLeakedReasoning(text: string): string {
-  if (typeof text !== 'string' || !text) return text;
-  let cleaned = text;
-  // Potong HANYA di "* *" (bintang-spasi-bintang) — ini marker kebocoran teks batin AI
-  // JANGAN potong di "**" karena itu markdown bold yang valid (mis. **heart failure**)
-  if (cleaned.includes('* *')) {
-    cleaned = cleaned.split('* *')[0];
-  }
-  // Potong juga jika ada marker 'Wait, check constraints' atau 'check constraints'
-  const constraintIdx = cleaned.search(/Wait,?\s*check\s*constraints|check\s*constraints/i);
-  if (constraintIdx !== -1) {
-    cleaned = cleaned.substring(0, constraintIdx);
-  }
-  // Keyword cadangan
-  const trash = ['* Okay', '* Output', '* Note:', '*Note:'];
-  for (const t of trash) {
-    const i = cleaned.indexOf(t);
-    if (i !== -1) cleaned = cleaned.substring(0, i);
-  }
-  return cleaned.trim().replace(/[\s\*]+$/, '');
-}
+// Alias lokal — semua panggilan tetap bisa pakai nama lama ini
+const cutLeakedReasoning = cleanMessageText;
 
 export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) => {
   const { user, logout, updateUser } = useAuth();

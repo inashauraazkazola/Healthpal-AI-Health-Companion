@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Camera, ArrowLeft, Upload, ShieldAlert, CheckCircle2, Loader2, FileSearch, Mic, MicOff, Volume2, X, Zap } from 'lucide-react';
 import { PalBuddy } from '../components/PalBuddy';
-import { proxyChat, AI_DISCLAIMER } from '../lib/ai';
+import { proxyChat, AI_DISCLAIMER, cleanMessageText } from '../lib/ai';
 import { cn } from '../lib/utils';
 
 import { useAuth } from '../hooks/usePersistence';
@@ -10,11 +10,8 @@ import { motion, AnimatePresence } from 'motion/react';
 
 function formatMessageToHtml(text: string): string {
   if (!text) return '';
-  let cleanText: string = text;
-  if (cleanText.includes("* *")) {
-    cleanText = cleanText.split("* *")[0];
-  }
-  cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
+  // Gunakan cleanMessageText terpusat yang memotong semua bentuk kebocoran AI
+  const cleanText: string = cleanMessageText(text);
   let html = cleanText
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

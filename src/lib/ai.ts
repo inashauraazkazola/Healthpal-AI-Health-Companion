@@ -9,47 +9,59 @@ export const AI_DISCLAIMER =
   "This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// cleanAiResponse — Universal frontend response cleanup
-// Applied to EVERY AI response before it leaves this module.
-// Strips leaked internal reasoning from the model (e.g. "* *Wait...").
+// cleanMessageText — SATU-SATUNYA fungsi pembersih teks AI di seluruh frontend.
+// Export dan pakai fungsi ini di SEMUA komponen yang menampilkan teks AI.
+// Memotong: Thinking Process, Analyze the Request, * *Wait, * *Okay, dll.
 // ─────────────────────────────────────────────────────────────────────────────
-function cleanAiResponse(text: string): string {
-  if (typeof text !== 'string' || !text) return text;
+export const cleanMessageText = (rawText: string): string => {
+  if (!rawText || typeof rawText !== 'string') return '';
 
-  let cleaned = text;
+  let clean = rawText;
 
-  // ── Potong di "* *" (bintang-spasi-bintang) — ini satu-satunya marker kebocoran AI yang valid ──
-  // JANGAN potong di "**" karena itu markdown bold yang sah (mis. **heart failure**)
-  if (cleaned.includes('* *')) {
-    cleaned = cleaned.split('* *')[0];
+  // 1. Hapus blok <think>...</think> (dari reasoning model)
+  clean = clean.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+  // 2. Potong paksa di "Thinking Process:" — teks batin yang bocor ke output
+  if (clean.includes('Thinking Process:')) {
+    clean = clean.split('Thinking Process:')[0];
   }
 
-  // ── Potong jika ada 'Wait, check constraints' atau 'check constraints' ──
-  const constraintIdx = cleaned.search(/Wait,?\s*check\s*constraints|check\s*constraints/i);
+  // 3. Potong paksa di "Analyze the Request:" — bocoran instruksi sistem
+  if (clean.includes('Analyze the Request:')) {
+    clean = clean.split('Analyze the Request:')[0];
+  }
+
+  // 4. Potong paksa di "* *" (bintang-spasi-bintang) — marker teks batin bocor
+  //    CATATAN: JANGAN potong di "**" karena itu markdown bold yang valid
+  if (clean.includes('* *')) {
+    clean = clean.split('* *')[0];
+  }
+
+  // 5. Potong di 'Wait, check constraints' atau 'check constraints'
+  const constraintIdx = clean.search(/Wait,?\s*check\s*constraints|check\s*constraints/i);
   if (constraintIdx !== -1) {
-    cleaned = cleaned.substring(0, constraintIdx);
+    clean = clean.substring(0, constraintIdx);
   }
 
-  // ── Keyword cadangan ───────────────────────────────────────────────────────
+  // 6. Keyword bocoran lainnya sebagai jaring pengaman tambahan
   const trashMarkers = [
-    '* Okay',
-    '* Output',
-    '* Note:',
-    '*Note:',
-    "##` headers",
+    '* Okay', '* Ok', '* Output', '* Note:', '*Note:',
+    '##` headers', 'Output ONLY', 'Review against constraints',
   ];
   for (const marker of trashMarkers) {
-    const idx = cleaned.indexOf(marker);
-    if (idx !== -1) {
-      cleaned = cleaned.substring(0, idx);
-    }
+    const idx = clean.indexOf(marker);
+    if (idx !== -1) clean = clean.substring(0, idx);
   }
 
-  // ── Bersihkan ekor bintang/spasi menggantung ──────────────────────────────
-  cleaned = cleaned.trim().replace(/[\s\*]+$/, '');
+  // 7. Bersihkan ekor bintang/spasi menggantung
+  clean = clean.trim().replace(/[\s\*]+$/, '');
 
-  return cleaned;
-}
+  return clean;
+};
+
+// Alias internal (untuk kompatibilitas kode lama di file ini)
+const cleanAiResponse = cleanMessageText;
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // proxyChat — Text-only chat via /api/chat

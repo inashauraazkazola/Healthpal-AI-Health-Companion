@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Mic, MicOff, Volume2 } from 'lucide-react';
+import { Mic, MicOff } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { cleanMessageText } from '../lib/ai';
 
 export const useSpeechRecognition = (onResult: (text: string) => void, language: string = 'en-US') => {
   const [isListening, setIsListening] = useState(false);
@@ -35,24 +36,9 @@ export const speakText = (text: string, language: string = 'en-US', onStateChang
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
   
-  let cleaned = text;
-  // Potong HANYA di "* *" (bintang-spasi-bintang) — marker kebocoran AI
-  // JANGAN potong di "**" karena itu markdown bold valid
-  if (cleaned.includes('* *')) {
-    cleaned = cleaned.split('* *')[0];
-  }
-  // Potong juga jika ada 'Wait, check constraints'
-  const constraintIdx = cleaned.search(/Wait,?\s*check\s*constraints|check\s*constraints/i);
-  if (constraintIdx !== -1) {
-    cleaned = cleaned.substring(0, constraintIdx);
-  }
-  // Keyword cadangan
-  const trash = ['* Okay', '* Output', '* Note:', '*Note:'];
-  for (const t of trash) {
-    const i = cleaned.indexOf(t);
-    if (i !== -1) cleaned = cleaned.substring(0, i);
-  }
-
+  // Gunakan cleanMessageText terpusat — memotong SEMUA bentuk kebocoran AI
+  const cleaned = cleanMessageText(text || '');
+  // Hapus simbol markdown agar TTS tidak mengeja bintang/hash
   const cleanTextForSpeech = cleaned.replace(/[\*#_>]/g, '').trim();
   const chunks = cleanTextForSpeech.match(/.{1,200}(\s|$)/g) || [cleanTextForSpeech];
   
