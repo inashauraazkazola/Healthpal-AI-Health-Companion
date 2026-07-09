@@ -3,10 +3,38 @@ import { Camera, ArrowLeft, Upload, ShieldAlert, CheckCircle2, Loader2, FileSear
 import { PalBuddy } from '../components/PalBuddy';
 import { proxyChat, AI_DISCLAIMER } from '../lib/ai';
 import { cn } from '../lib/utils';
-import ReactMarkdown from 'react-markdown';
+
 import { useAuth } from '../hooks/usePersistence';
 import { VoiceInputButton, speakText } from '../components/VoiceTools';
 import { motion, AnimatePresence } from 'motion/react';
+
+function formatMessageToHtml(text: string): string {
+  if (!text) return '';
+  let cleanText = text;
+  // Cut leaked AI reasoning at known markers
+  const trashMarkers = ['* *Wait', '* *Okay', '* *Ok', '* Okay', '* Output', 'Wait, check constraints'];
+  for (const marker of trashMarkers) {
+    const idx = cleanText.indexOf(marker);
+    if (idx !== -1) cleanText = cleanText.substring(0, idx);
+  }
+  cleanText = cleanText.trim().replace(/[\s\*]+$/, '');
+  let html = cleanText
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  html = html.replace(/^&gt;\s*(.*)$/gm, '<blockquote>$1</blockquote>');
+  html = html.replace(/^(This AI analysis is informative and does not replace professional medical consultation.*)$/gim, '<blockquote>$1</blockquote>');
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/^##\s*(.*)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^###\s*(.*)$/gm, '<h3>$1</h3>');
+  html = html.replace(/\*/g, '').replace(/#/g, '');
+  const blocks = html.split(/\n\n+/);
+  return blocks.map(block => {
+    const trimmed = block.trim();
+    if (trimmed.startsWith('<blockquote>') || trimmed.startsWith('<h2>') || trimmed.startsWith('<h3>')) return trimmed;
+    return `<p>${trimmed.replace(/\n/g, '<br/>')}</p>`;
+  }).join('');
+}
 
 export const HealthScan = ({ onBack }: { onBack: () => void }) => {
   const [image, setImage] = useState<string | null>(null);
@@ -307,7 +335,7 @@ export const HealthScan = ({ onBack }: { onBack: () => void }) => {
                         <Volume2 className="w-4 h-4" /> {isSpeaking ? 'Listening...' : 'Listen Analysis'}
                       </button>
                     </div>
-                    <ReactMarkdown>{result}</ReactMarkdown>
+                     <div className="chat-content text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: formatMessageToHtml(result) }} />
                  </div>
                ) : (
                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-12">

@@ -9,6 +9,41 @@ export const AI_DISCLAIMER =
   "This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.";
 
 // ─────────────────────────────────────────────────────────────────────────────
+// cleanAiResponse — Universal frontend response cleanup
+// Applied to EVERY AI response before it leaves this module.
+// Strips leaked internal reasoning from the model (e.g. "* *Wait...").
+// ─────────────────────────────────────────────────────────────────────────────
+function cleanAiResponse(text: string): string {
+  if (!text) return text;
+
+  let cleaned = text;
+
+  // Cut everything from known leaked internal reasoning markers
+  const trashMarkers = [
+    "* *Wait",
+    "* *Okay",
+    "* *Ok",
+    "* Okay",
+    "* Output",
+    "##` headers",
+    "*Note:",
+    "* Note:",
+    "Wait, check constraints",
+  ];
+  for (const marker of trashMarkers) {
+    const idx = cleaned.indexOf(marker);
+    if (idx !== -1) {
+      cleaned = cleaned.substring(0, idx);
+    }
+  }
+
+  // Trim trailing whitespace and stray asterisks/symbols
+  cleaned = cleaned.trim().replace(/[\s\*]+$/, '');
+
+  return cleaned;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // proxyChat — Text-only chat via /api/chat
 // Call when the user sends a plain-text message (no image).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -30,7 +65,8 @@ export const proxyChat = async (prompt: string, imageBase64?: string): Promise<s
     throw new Error(data?.error || 'Chat request failed');
   }
 
-  return typeof data?.text === 'string' ? data.text : JSON.stringify(data?.text ?? '');
+  const raw = typeof data?.text === 'string' ? data.text : JSON.stringify(data?.text ?? '');
+  return cleanAiResponse(raw);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,7 +93,8 @@ export const proxyVision = async (
     throw new Error(data?.error || 'Vision request failed');
   }
 
-  return typeof data?.text === 'string' ? data.text : JSON.stringify(data?.text ?? '');
+  const raw = typeof data?.text === 'string' ? data.text : JSON.stringify(data?.text ?? '');
+  return cleanAiResponse(raw);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
