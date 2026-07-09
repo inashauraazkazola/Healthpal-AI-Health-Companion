@@ -1,0 +1,14 @@
+{
+  "name": "Remix:  Healthpal - AI Health Companion",
+  "description": "Comprehensive Health PWA featuring PalBuddy AI, a smart health assistant. Includes Health Scan, medical tracking, and disease-specific modules with a focus on privacy.",
+  "requestFramePermissions": [
+    "camera",
+    "accelerometer",
+    "gyroscope"
+  ],
+  "majorCapabilities": [
+    "AI Health Assistant",
+    "Health Scan",
+    "Universal Medical Tracking"
+  ]
+}
