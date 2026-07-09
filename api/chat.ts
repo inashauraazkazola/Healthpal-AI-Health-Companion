@@ -18,49 +18,88 @@ Rules:
 const DISCLAIMER = '> This AI analysis is informative and does not replace professional medical consultation. Please consult a licensed medical professional.';
 
 /**
- * Extract clean user-facing response from AI output.
+ * Extract ONLY the clean user-facing response from Qwen3 output.
  *
- * Strategy: Qwen3 tends to leak its reasoning before the actual answer.
- * The actual answer always starts with the disclaimer blockquote line.
- * So we find that line and take everything from there onwards.
- * If the disclaimer is missing entirely, we strip known junk and prepend it.
+ * Qwen3 frequently leaks its internal reasoning in this structure:
+ *   > Disclaimer...
+ *   Thinking Process:
+ *   Analyze the Request: ...
+ *   Formulate the Response:
+ *   Drafting:
+ *   ## Actual Clean Content   <-- THIS is what we want
+ *   Review against constraints: ...  <-- junk again
+ *
+ * Strategy:
+ *   1. If "Drafting" marker exists → extract content between it and "Review against"
+ *   2. If no Drafting but reasoning headers exist → find the last ## header block
+ *   3. Always strip trailing "Review against constraints:" blocks
+ *   4. Always ensure disclaimer is at the top, exactly once
  */
 function extractCleanResponse(text: string): string {
-  // 1. Remove <think>...</think> blocks (Qwen3 thinking tags)
+  // Step 0: Remove <think>...</think> blocks
   let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
 
-  // 2. Try to find the disclaimer line and take everything from there
-  const disclaimerPattern = /^>\s*This AI analysis is informative/m;
-  const match = cleaned.match(disclaimerPattern);
+  // Step 1: Detect if reasoning leaked
+  const hasThinkingLeak = /Thinking Process:|Analyze the Request:|Formulate the Response:|Review against constraints:/i.test(cleaned);
 
-  if (match && match.index !== undefined) {
-    // Take everything from the disclaimer onwards — discard ALL preceding text
-    cleaned = cleaned.substring(match.index);
-  } else {
-    // Disclaimer not found — aggressively strip all reasoning junk
-    cleaned = cleaned
-      .replace(/^(Analyze the Request|Formulate the Response|Review against constraints|Greeting Content|Drafting content|Disclaimer|English only\?|Concise\?|Safe\/|Data\/metrics|No internal)[:\s].*$/gim, '')
-      .replace(/^(N\/A|Yes[.,]|No[.,]).*/gim, '')
-      .replace(/^[-*]\s*(Act as|Give general|ALWAYS include|Focus on|DO NOT|If Hands|Language:).*/gim, '')
-      .replace(/^(User manages|Recent conversation|Persona|Rules):?.*/gim, '')
-      .replace(/^(Acknowledge|Be warm|Use Markdown|Keep it).*/gim, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
+  if (hasThinkingLeak) {
+    // Strategy A: Extract from "Drafting" section (most reliable)
+    const draftMatch = cleaned.match(/Drafting(?:\s+content)?[:\s]*\n([\s\S]*?)(?=\n\s*Review against constraints:|\n\s*Review against|\n\s*Constraints check:)/i);
 
-    // Prepend disclaimer if it's missing
-    if (!disclaimerPattern.test(cleaned)) {
-      cleaned = DISCLAIMER + '\n\n' + cleaned;
+    if (draftMatch && draftMatch[1]?.trim()) {
+      cleaned = draftMatch[1].trim();
+    } else {
+      // Strategy B: "Drafting" exists but no "Review" after it — take everything after Drafting
+      const draftFallback = cleaned.match(/Drafting(?:\s+content)?[:\s]*\n([\s\S]+)$/i);
+      if (draftFallback && draftFallback[1]?.trim()) {
+        cleaned = draftFallback[1].trim();
+      } else {
+        // Strategy C: No Drafting marker — try to find the actual content
+        // by looking for the last markdown ## header block
+        const lines = cleaned.split('\n');
+        let lastHeaderIdx = -1;
+        for (let i = lines.length - 1; i >= 0; i--) {
+          if (/^#{1,3}\s+\S/.test(lines[i])) {
+            lastHeaderIdx = i;
+            break;
+          }
+        }
+        if (lastHeaderIdx !== -1) {
+          cleaned = lines.slice(lastHeaderIdx).join('\n');
+        }
+      }
     }
   }
 
-  // 3. Final cleanup: collapse blank lines
+  // Step 2: Remove any trailing "Review against constraints:" block and everything after
+  cleaned = cleaned.replace(/\n*\s*Review against constraints:[\s\S]*/i, '');
+
+  // Step 3: Remove any remaining reasoning lines that might have survived
+  cleaned = cleaned
+    .replace(/^(Thinking Process|Analyze the Request|Formulate the Response|Greeting Content|Greeting\/Content|Disclaimer)[:\s].*$/gim, '')
+    .replace(/^(English only\?|Concise\?|Safe\/evidence|Data\/metrics|No internal|N\/A|Yes[.,]|No[.,]).*/gim, '')
+    .replace(/^(User manages|Recent conversation|Persona|Rules)[:\s].*$/gim, '')
+    .replace(/^(Acknowledge|Be warm|Use Markdown|Keep it|Wait,).*/gim, '')
+    .replace(/^[-*]\s*(Act as|Give general|ALWAYS include|Focus on|DO NOT|If Hands|Language:).*/gim, '');
+
+  // Step 4: Collapse blank lines
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
+
+  // Step 5: Ensure exactly one disclaimer at the top
+  // First remove ALL disclaimer lines from the text
+  cleaned = cleaned.replace(/^>\s*This AI analysis is informative[^\n]*\n*/gm, '').trim();
+
+  // Then prepend exactly one disclaimer
+  cleaned = DISCLAIMER + '\n\n' + cleaned;
+
+  // Final cleanup
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
 
   return cleaned;
 }
 
 /**
- * Text-only chat via qwen3p7-plus (thinking disabled).
+ * Text-only chat via qwen3p7-plus.
  * For image analysis, use /api/vision instead.
  */
 export const runChat = async (prompt: string) => {
